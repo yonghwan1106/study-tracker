@@ -38,14 +38,16 @@ const getEncouragementMessage = (minutes: number): { emoji: string; message: str
   // 8시간 이상 (480분+) - 엄청남
   if (minutes >= 480) {
     const messages = [
-      { emoji: '🔥', message: '불타는 집중력!' },
-      { emoji: '💎', message: '다이아몬드 멘탈!' },
-      { emoji: '🚀', message: '목표를 향해 전력 질주!' },
-      { emoji: '🌈', message: '오늘도 최고였어!' },
-      { emoji: '✨', message: '빛나는 하루!' },
+      { emoji: '🔥', message: '오늘 완전 불태웠다!' },
+      { emoji: '💎', message: '다이아몬드급 집중력!' },
+      { emoji: '🏅', message: '금메달 확정!' },
+      { emoji: '🌈', message: '오늘 진짜 최고였어!' },
+      { emoji: '✨', message: '빛나는 하루였다!' },
       { emoji: '🎯', message: '완벽한 하루!' },
       { emoji: '💪', message: '진정한 노력파!' },
-      { emoji: '🏅', message: '금메달 확정!' },
+      { emoji: '🥇', message: '오늘의 1등!' },
+      { emoji: '👊', message: '이 정도면 프로!' },
+      { emoji: '🙌', message: '와, 대박이다!' },
     ];
     return messages[Math.floor(Math.random() * messages.length)];
   }
@@ -53,12 +55,13 @@ const getEncouragementMessage = (minutes: number): { emoji: string; message: str
   // 6시간 이상 (360분+) - 대단함
   if (minutes >= 360) {
     const messages = [
-      { emoji: '⭐', message: '대단해! 진짜 멋져!' },
-      { emoji: '🎉', message: '최고의 하루!' },
+      { emoji: '⭐', message: '대단해! 진짜 멋졌어!' },
+      { emoji: '🎉', message: '오늘 완전 잘했어!' },
       { emoji: '💯', message: '만점짜리 노력!' },
-      { emoji: '🌟', message: '오늘도 빛났어!' },
-      { emoji: '🙌', message: '자랑스러워!' },
-      { emoji: '👏', message: '박수 짝짝짝!' },
+      { emoji: '🌟', message: '오늘 진짜 빛났다!' },
+      { emoji: '🙌', message: '너무 자랑스러워!' },
+      { emoji: '👏', message: '박수 받아 마땅해!' },
+      { emoji: '🎊', message: '축하해! 대성공!' },
     ];
     return messages[Math.floor(Math.random() * messages.length)];
   }
