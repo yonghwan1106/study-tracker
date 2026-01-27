@@ -1,13 +1,10 @@
 'use client';
 
-import { useStudent } from './StudentContext';
 import StudentSelector from './StudentSelector';
 import { BookOpen } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Header() {
-  const { selectedStudent } = useStudent();
-
   return (
     <header className="sticky top-0 z-50 bg-card border-b border-border">
       <div className="container mx-auto px-4 max-w-4xl">
@@ -17,14 +14,7 @@ export default function Header() {
             <span className="font-semibold text-lg hidden sm:block">학습관리</span>
           </Link>
 
-          <div className="flex items-center gap-3">
-            {selectedStudent && (
-              <span className="text-sm text-muted hidden sm:block">
-                {selectedStudent.name}의 학습
-              </span>
-            )}
-            <StudentSelector />
-          </div>
+          <StudentSelector />
         </div>
       </div>
     </header>
