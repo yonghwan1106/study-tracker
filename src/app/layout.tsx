@@ -1,18 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Gowun_Dodum } from "next/font/google";
 import "./globals.css";
 import { StudentProvider } from "@/components/layout/StudentContext";
 import BottomNav from "@/components/layout/BottomNav";
 import Header from "@/components/layout/Header";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const gowunDodum = Gowun_Dodum({
+  weight: "400",
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable: "--font-gowun",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -30,7 +27,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#3b82f6",
+  themeColor: "#f97066",
 };
 
 export const dynamic = 'force-dynamic';
@@ -42,13 +39,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${gowunDodum.variable} antialiased`}>
         <StudentProvider>
-          <div className="min-h-screen pb-20 md:pb-0">
+          <div className="relative min-h-screen pb-24 md:pb-0 z-10">
             <Header />
-            <main className="container mx-auto px-4 py-4 max-w-4xl">
+            <main className="container mx-auto px-4 py-6 max-w-2xl">
               {children}
             </main>
             <BottomNav />

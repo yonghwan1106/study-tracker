@@ -9,7 +9,6 @@ import { getToday } from '@/lib/utils';
 import SubjectSelect from './SubjectSelect';
 import DurationPicker from './DurationPicker';
 import TextbookInput from './TextbookInput';
-import { Save, Loader2 } from 'lucide-react';
 
 interface RecordFormProps {
   editRecord?: StudyRecord;
@@ -24,6 +23,7 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   // Form state
   const [subjectId, setSubjectId] = useState(editRecord?.subject_id || '');
@@ -89,11 +89,14 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
         await createStudyRecord(recordData);
       }
 
-      if (onSuccess) {
-        onSuccess();
-      } else {
-        router.push('/history');
-      }
+      setSuccess(true);
+      setTimeout(() => {
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          router.push('/');
+        }
+      }, 1500);
     } catch (err) {
       console.error('Error saving record:', err);
       setError('저장에 실패했습니다. 다시 시도해주세요.');
@@ -104,8 +107,19 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="flex flex-col items-center justify-center py-12 gap-3">
+        <div className="w-10 h-10 border-3 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+        <span className="text-sm text-[var(--muted)]">불러오는 중...</span>
+      </div>
+    );
+  }
+
+  if (success) {
+    return (
+      <div className="glass-card p-10 text-center animate-fade-in-up">
+        <span className="text-6xl block mb-4 animate-celebrate">🎉</span>
+        <h2 className="text-xl font-bold mb-2">저장 완료!</h2>
+        <p className="text-[var(--muted)]">학습 기록이 저장되었어요</p>
       </div>
     );
   }
@@ -115,26 +129,33 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-red-600 dark:text-red-400">
-          {error}
+        <div className="glass-card p-4 text-center animate-fade-in-up" style={{ borderColor: '#ef444450' }}>
+          <span className="text-2xl block mb-2">😥</span>
+          <p className="text-red-500 font-medium">{error}</p>
         </div>
       )}
 
       {/* Date */}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-muted">날짜</label>
+      <div className="glass-card p-5 space-y-3 animate-fade-in-up">
+        <label className="flex items-center gap-2 text-sm font-bold">
+          <span>📅</span>
+          날짜
+        </label>
         <input
           type="date"
           value={studyDate}
           onChange={(e) => setStudyDate(e.target.value)}
           max={getToday()}
-          className="w-full px-4 py-3 bg-card border border-border rounded-lg"
+          className="w-full"
         />
       </div>
 
       {/* Subject */}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-muted">과목</label>
+      <div className="glass-card p-5 space-y-3 animate-fade-in-up stagger-1">
+        <label className="flex items-center gap-2 text-sm font-bold">
+          <span>📚</span>
+          과목 선택
+        </label>
         <SubjectSelect
           subjects={subjects}
           value={subjectId}
@@ -143,8 +164,11 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
       </div>
 
       {/* Textbook */}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-muted">교재명</label>
+      <div className="glass-card p-5 space-y-3 animate-fade-in-up stagger-2">
+        <label className="flex items-center gap-2 text-sm font-bold">
+          <span>📖</span>
+          교재명
+        </label>
         <TextbookInput
           subjectId={subjectId}
           value={textbook}
@@ -153,32 +177,41 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
       </div>
 
       {/* Study Range */}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-muted">학습 범위</label>
+      <div className="glass-card p-5 space-y-3 animate-fade-in-up stagger-3">
+        <label className="flex items-center gap-2 text-sm font-bold">
+          <span>📝</span>
+          학습 범위
+        </label>
         <input
           type="text"
           value={studyRange}
           onChange={(e) => setStudyRange(e.target.value)}
           placeholder="예: 2단원 p.35~42"
-          className="w-full px-4 py-3 bg-card border border-border rounded-lg"
+          className="w-full"
         />
       </div>
 
       {/* Duration */}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-muted">학습 시간</label>
+      <div className="glass-card p-5 space-y-3 animate-fade-in-up stagger-4">
+        <label className="flex items-center gap-2 text-sm font-bold">
+          <span>⏱️</span>
+          학습 시간
+        </label>
         <DurationPicker value={duration} onChange={setDuration} />
       </div>
 
       {/* Memo */}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-muted">메모 (선택)</label>
+      <div className="glass-card p-5 space-y-3 animate-fade-in-up stagger-5">
+        <label className="flex items-center gap-2 text-sm font-bold">
+          <span>💬</span>
+          메모 <span className="font-normal text-[var(--muted)]">(선택)</span>
+        </label>
         <textarea
           value={memo}
           onChange={(e) => setMemo(e.target.value)}
           placeholder="부모님 코멘트나 피드백을 입력하세요"
           rows={3}
-          className="w-full px-4 py-3 bg-card border border-border rounded-lg resize-none"
+          className="w-full resize-none"
         />
       </div>
 
@@ -186,20 +219,25 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
       <button
         type="submit"
         disabled={saving || !selectedStudent}
-        className="w-full btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full py-4 rounded-2xl font-bold text-lg text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
         style={{
-          backgroundColor: selectedSubject?.color,
+          background: selectedSubject
+            ? `linear-gradient(135deg, ${selectedSubject.color} 0%, ${selectedSubject.color}dd 100%)`
+            : 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)',
+          boxShadow: selectedSubject
+            ? `0 8px 30px ${selectedSubject.color}40`
+            : '0 8px 30px var(--primary-glow)',
         }}
       >
         {saving ? (
           <>
-            <Loader2 className="w-5 h-5 animate-spin mr-2" />
+            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
             저장 중...
           </>
         ) : (
           <>
-            <Save className="w-5 h-5 mr-2" />
-            {editRecord ? '수정 완료' : '기록 저장'}
+            <span className="text-xl">✨</span>
+            {editRecord ? '수정 완료' : '기록 저장하기'}
           </>
         )}
       </button>
