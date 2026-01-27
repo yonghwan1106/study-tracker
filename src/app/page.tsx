@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useStudent } from '@/components/layout/StudentContext';
 import { getStudyRecordsByDate, getWeeklyStats } from '@/lib/api';
@@ -19,6 +19,77 @@ const motivationalMessages = [
   '포기하지 않으면 성공이야 🌟',
 ];
 
+// 학습 시간별 응원 멘트 (분 단위 기준)
+const getEncouragementMessage = (minutes: number): { emoji: string; message: string } => {
+  // 10시간 이상 (600분+) - 전설급
+  if (minutes >= 600) {
+    const messages = [
+      { emoji: '👑', message: '오늘의 공부왕!' },
+      { emoji: '🏆', message: '전설이 되는 중!' },
+      { emoji: '⚡', message: '미쳤다! 진짜 대단해!' },
+      { emoji: '🌟', message: '하늘에서 별이 빛나는 이유' },
+      { emoji: '🦸', message: '슈퍼 집중력!' },
+      { emoji: '💫', message: '너의 노력이 빛나는 날!' },
+      { emoji: '🎖️', message: '명예의 전당 입성!' },
+    ];
+    return messages[Math.floor(Math.random() * messages.length)];
+  }
+
+  // 8시간 이상 (480분+) - 엄청남
+  if (minutes >= 480) {
+    const messages = [
+      { emoji: '🔥', message: '불타는 집중력!' },
+      { emoji: '💎', message: '다이아몬드 멘탈!' },
+      { emoji: '🚀', message: '목표를 향해 전력 질주!' },
+      { emoji: '🌈', message: '오늘도 최고였어!' },
+      { emoji: '✨', message: '빛나는 하루!' },
+      { emoji: '🎯', message: '완벽한 하루!' },
+      { emoji: '💪', message: '진정한 노력파!' },
+      { emoji: '🏅', message: '금메달 확정!' },
+    ];
+    return messages[Math.floor(Math.random() * messages.length)];
+  }
+
+  // 6시간 이상 (360분+) - 대단함
+  if (minutes >= 360) {
+    const messages = [
+      { emoji: '⭐', message: '대단해! 진짜 멋져!' },
+      { emoji: '🎉', message: '최고의 하루!' },
+      { emoji: '💯', message: '만점짜리 노력!' },
+      { emoji: '🌟', message: '오늘도 빛났어!' },
+      { emoji: '🙌', message: '자랑스러워!' },
+      { emoji: '👏', message: '박수 짝짝짝!' },
+    ];
+    return messages[Math.floor(Math.random() * messages.length)];
+  }
+
+  // 4시간 이상 (240분+) - 훌륭함
+  if (minutes >= 240) {
+    const messages = [
+      { emoji: '👍', message: '잘하고 있어!' },
+      { emoji: '💪', message: '오늘도 성장 중!' },
+      { emoji: '🌱', message: '실력이 쑥쑥!' },
+      { emoji: '📈', message: '꾸준함의 힘!' },
+      { emoji: '✏️', message: '열공 모드!' },
+    ];
+    return messages[Math.floor(Math.random() * messages.length)];
+  }
+
+  // 2시간 이상 (120분+) - 좋은 시작
+  if (minutes >= 120) {
+    const messages = [
+      { emoji: '👌', message: '좋은 출발이야!' },
+      { emoji: '🌸', message: '오늘도 힘내자!' },
+      { emoji: '📚', message: '차근차근 가는 중!' },
+      { emoji: '🎈', message: '조금씩 나아가는 중!' },
+    ];
+    return messages[Math.floor(Math.random() * messages.length)];
+  }
+
+  // 2시간 미만
+  return { emoji: '📖', message: '시작이 반이야!' };
+};
+
 export default function Home() {
   const { selectedStudent, loading: studentLoading } = useStudent();
   const [todayRecords, setTodayRecords] = useState<StudyRecord[]>([]);
@@ -30,6 +101,15 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [motivation] = useState(() =>
     motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)]
+  );
+
+  // 학습 시간 계산 및 응원 메시지 (hooks는 조건문 전에 호출해야 함)
+  const todayTotal = todayRecords.reduce((sum, r) => sum + r.duration_minutes, 0);
+  const encouragementLevel = Math.floor(todayTotal / 120);
+  const encouragement = useMemo(
+    () => getEncouragementMessage(todayTotal),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [encouragementLevel]
   );
 
   useEffect(() => {
@@ -95,7 +175,6 @@ export default function Home() {
     greeting: '오늘도 화이팅!',
     color: '#8b9aaa',
   };
-  const todayTotal = todayRecords.reduce((sum, r) => sum + r.duration_minutes, 0);
   const hasStudiedToday = todayRecords.length > 0;
 
   return (
@@ -195,7 +274,7 @@ export default function Home() {
               </p>
               {todayTotal >= 120 && (
                 <span className="achievement-badge mt-3 inline-flex">
-                  🔥 대단해요!
+                  {encouragement.emoji} {encouragement.message}
                 </span>
               )}
             </div>
