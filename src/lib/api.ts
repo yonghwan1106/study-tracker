@@ -5,7 +5,7 @@ import { startOfWeek, endOfWeek, getISOWeek, getYear, format } from 'date-fns';
 // Subjects
 export async function getSubjects(): Promise<Subject[]> {
   const { data, error } = await supabase
-    .from('subjects')
+    .from('st_subjects')
     .select('*')
     .order('sort_order');
 
@@ -20,8 +20,8 @@ export async function getStudyRecords(
   endDate?: string
 ): Promise<StudyRecord[]> {
   let query = supabase
-    .from('study_records')
-    .select('*, subject:subjects(*)')
+    .from('st_study_records')
+    .select('*, subject:st_subjects(*)')
     .eq('student_id', studentId)
     .order('study_date', { ascending: false })
     .order('created_at', { ascending: false });
@@ -43,8 +43,8 @@ export async function getStudyRecordsByDate(
   date: string
 ): Promise<StudyRecord[]> {
   const { data, error } = await supabase
-    .from('study_records')
-    .select('*, subject:subjects(*)')
+    .from('st_study_records')
+    .select('*, subject:st_subjects(*)')
     .eq('student_id', studentId)
     .eq('study_date', date)
     .order('created_at', { ascending: false });
@@ -63,9 +63,9 @@ export async function createStudyRecord(record: {
   memo?: string;
 }): Promise<StudyRecord> {
   const { data, error } = await supabase
-    .from('study_records')
+    .from('st_study_records')
     .insert(record)
-    .select('*, subject:subjects(*)')
+    .select('*, subject:st_subjects(*)')
     .single();
 
   if (error) throw error;
@@ -90,10 +90,10 @@ export async function updateStudyRecord(
   }>
 ): Promise<StudyRecord> {
   const { data, error } = await supabase
-    .from('study_records')
+    .from('st_study_records')
     .update({ ...record, updated_at: new Date().toISOString() })
     .eq('id', id)
-    .select('*, subject:subjects(*)')
+    .select('*, subject:st_subjects(*)')
     .single();
 
   if (error) throw error;
@@ -102,7 +102,7 @@ export async function updateStudyRecord(
 
 export async function deleteStudyRecord(id: string): Promise<void> {
   const { error } = await supabase
-    .from('study_records')
+    .from('st_study_records')
     .delete()
     .eq('id', id);
 
@@ -116,8 +116,8 @@ export async function getWeeklyGoals(
   weekNumber: number
 ): Promise<WeeklyGoal[]> {
   const { data, error } = await supabase
-    .from('weekly_goals')
-    .select('*, subject:subjects(*)')
+    .from('st_weekly_goals')
+    .select('*, subject:st_subjects(*)')
     .eq('student_id', studentId)
     .eq('year', year)
     .eq('week_number', weekNumber);
@@ -134,11 +134,11 @@ export async function setWeeklyGoal(goal: {
   target_minutes: number;
 }): Promise<WeeklyGoal> {
   const { data, error } = await supabase
-    .from('weekly_goals')
+    .from('st_weekly_goals')
     .upsert(goal, {
       onConflict: 'student_id,subject_id,year,week_number',
     })
-    .select('*, subject:subjects(*)')
+    .select('*, subject:st_subjects(*)')
     .single();
 
   if (error) throw error;
@@ -148,7 +148,7 @@ export async function setWeeklyGoal(goal: {
 // Textbooks (autocomplete)
 export async function getTextbooks(subjectId?: string): Promise<Textbook[]> {
   let query = supabase
-    .from('textbooks')
+    .from('st_textbooks')
     .select('*')
     .order('created_at', { ascending: false })
     .limit(50);
@@ -165,7 +165,7 @@ export async function getTextbooks(subjectId?: string): Promise<Textbook[]> {
 async function saveTextbook(subjectId: string, name: string): Promise<void> {
   // Check if textbook already exists
   const { data: existing } = await supabase
-    .from('textbooks')
+    .from('st_textbooks')
     .select('id')
     .eq('subject_id', subjectId)
     .eq('name', name)
@@ -173,7 +173,7 @@ async function saveTextbook(subjectId: string, name: string): Promise<void> {
 
   if (!existing) {
     await supabase
-      .from('textbooks')
+      .from('st_textbooks')
       .insert({ subject_id: subjectId, name });
   }
 }

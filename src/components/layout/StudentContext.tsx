@@ -23,7 +23,7 @@ export function StudentProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function fetchStudents() {
       const { data, error } = await supabase
-        .from('students')
+        .from('st_students')
         .select('*')
         .order('name');
 
