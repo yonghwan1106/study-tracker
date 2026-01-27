@@ -6,12 +6,15 @@ interface DurationPickerProps {
 }
 
 const QUICK_OPTIONS = [
-  { value: 15, label: '15분', emoji: '⚡' },
   { value: 30, label: '30분', emoji: '🕐' },
-  { value: 45, label: '45분', emoji: '📖' },
   { value: 60, label: '1시간', emoji: '💪' },
-  { value: 90, label: '1.5시간', emoji: '🔥' },
-  { value: 120, label: '2시간', emoji: '🏆' },
+  { value: 90, label: '1.5시간', emoji: '📖' },
+  { value: 120, label: '2시간', emoji: '🔥' },
+  { value: 150, label: '2.5시간', emoji: '⭐' },
+  { value: 180, label: '3시간', emoji: '🏆' },
+  { value: 240, label: '4시간', emoji: '🚀' },
+  { value: 300, label: '5시간', emoji: '💎' },
+  { value: 360, label: '6시간', emoji: '👑' },
 ];
 
 export default function DurationPicker({ value, onChange }: DurationPickerProps) {
