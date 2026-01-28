@@ -21,8 +21,8 @@ export default function EditRecordPage() {
 
       try {
         const { data, error } = await supabase
-          .from('study_records')
-          .select('*, subject:subjects(*)')
+          .from('st_study_records')
+          .select('*, subject:st_subjects(*)')
           .eq('id', params.id)
           .single();
 
