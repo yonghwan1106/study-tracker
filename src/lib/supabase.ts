@@ -10,7 +10,9 @@ function getSupabase(): SupabaseClient {
     if (!supabaseUrl || !supabaseAnonKey) {
       throw new Error('Supabase 환경 변수가 설정되지 않았습니다. .env.local 파일을 확인해주세요.');
     }
-    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey);
+    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+      db: { schema: 'study_tracker' }
+    });
   }
   return supabaseInstance;
 }
