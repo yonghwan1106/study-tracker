@@ -21,7 +21,7 @@ export async function getStudyRecords(
 ): Promise<StudyRecord[]> {
   let query = supabase
     .from('st_study_records')
-    .select('*, subject:subjects(*)')
+    .select('*')
     .eq('student_id', studentId)
     .order('study_date', { ascending: false })
     .order('created_at', { ascending: false });
@@ -44,7 +44,7 @@ export async function getStudyRecordsByDate(
 ): Promise<StudyRecord[]> {
   const { data, error } = await supabase
     .from('st_study_records')
-    .select('*, subject:subjects(*)')
+    .select('*')
     .eq('student_id', studentId)
     .eq('study_date', date)
     .order('created_at', { ascending: false });
@@ -65,7 +65,7 @@ export async function createStudyRecord(record: {
   const { data, error } = await supabase
     .from('st_study_records')
     .insert(record)
-    .select('*, subject:subjects(*)')
+    .select('*')
     .single();
 
   if (error) throw error;
@@ -93,7 +93,7 @@ export async function updateStudyRecord(
     .from('st_study_records')
     .update({ ...record, updated_at: new Date().toISOString() })
     .eq('id', id)
-    .select('*, subject:subjects(*)')
+    .select('*')
     .single();
 
   if (error) throw error;
@@ -117,7 +117,7 @@ export async function getWeeklyGoals(
 ): Promise<WeeklyGoal[]> {
   const { data, error } = await supabase
     .from('st_weekly_goals')
-    .select('*, subject:subjects(*)')
+    .select('*')
     .eq('student_id', studentId)
     .eq('year', year)
     .eq('week_number', weekNumber);
@@ -138,7 +138,7 @@ export async function setWeeklyGoal(goal: {
     .upsert(goal, {
       onConflict: 'student_id,subject_id,year,week_number',
     })
-    .select('*, subject:subjects(*)')
+    .select('*')
     .single();
 
   if (error) throw error;
