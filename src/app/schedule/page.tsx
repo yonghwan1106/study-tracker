@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 
 type DayType = 'mon-wed' | 'tue-thu' | 'fri' | 'weekend';
 
@@ -392,9 +393,10 @@ export default function SchedulePage() {
 
               {/* Block card */}
               {isSchool ? (
-                /* School: compact collapsed card */
-                <div
-                  className="flex-1 rounded-xl px-3.5 py-2.5 flex items-center gap-2.5"
+                /* School: compact collapsed card with link to timetable */
+                <Link
+                  href="/timetable"
+                  className="flex-1 rounded-xl px-3.5 py-2.5 flex items-center gap-2.5 group"
                   style={{
                     background: style.bg,
                     border: `1.5px dashed ${style.border}`,
@@ -408,10 +410,10 @@ export default function SchedulePage() {
                       {block.detail && <span className="ml-1.5 text-xs opacity-70">({block.detail})</span>}
                     </p>
                   </div>
-                  <span className="text-[10px] text-[var(--muted)] flex-shrink-0">
-                    {block.time} - {block.endTime}
+                  <span className="text-[10px] text-[var(--muted)] flex-shrink-0 group-hover:text-[var(--primary)] transition-colors">
+                    시간표 →
                   </span>
-                </div>
+                </Link>
               ) : (
                 /* Regular block */
                 <div
