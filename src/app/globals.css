@@ -377,6 +377,16 @@ textarea::placeholder {
   animation: float 4s ease-in-out infinite;
 }
 
+/* Golden time pulsing border for schedule */
+.schedule-golden {
+  animation: golden-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes golden-pulse {
+  0%, 100% { box-shadow: 0 4px 24px rgba(249,112,102,0.10), 0 0 40px rgba(249,112,102,0.10); }
+  50% { box-shadow: 0 4px 30px rgba(249,112,102,0.22), 0 0 50px rgba(249,112,102,0.18); }
+}
+
 /* Selection highlight */
 ::selection {
   background: var(--primary-light);
