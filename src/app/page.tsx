@@ -409,7 +409,12 @@ export default function Home() {
       </section>
 
       {/* Quick Links */}
-      <section className="grid grid-cols-2 gap-3 animate-fade-in-up stagger-4">
+      <section className="grid grid-cols-3 gap-3 animate-fade-in-up stagger-4">
+        <Link href="/schedule" className="glass-card p-5 group">
+          <span className="text-3xl mb-3 block group-hover:scale-110 transition-transform">🗓️</span>
+          <p className="font-bold">시간표</p>
+          <p className="text-sm text-[var(--muted)]">주간 스케줄</p>
+        </Link>
         <Link href="/history" className="glass-card p-5 group">
           <span className="text-3xl mb-3 block group-hover:scale-110 transition-transform">📋</span>
           <p className="font-bold">기록 목록</p>

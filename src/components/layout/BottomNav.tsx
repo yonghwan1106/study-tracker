@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 const navItems = [
   { href: '/', label: '홈', emoji: '🏠', activeEmoji: '🏡' },
   { href: '/record', label: '기록', emoji: '✏️', activeEmoji: '📝' },
-  { href: '/calendar', label: '캘린더', emoji: '📅', activeEmoji: '🗓️' },
+  { href: '/schedule', label: '시간표', emoji: '📋', activeEmoji: '🗓️' },
   { href: '/stats', label: '통계', emoji: '📊', activeEmoji: '📈' },
   { href: '/goals', label: '목표', emoji: '🎯', activeEmoji: '🏆' },
 ];
