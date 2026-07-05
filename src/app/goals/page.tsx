@@ -26,8 +26,8 @@ export default function GoalsPage() {
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h1 className="text-2xl font-bold">{selectedStudent.name}의 주간 목표</h1>
-        <p className="text-muted mt-1">과목별 학습 목표를 설정해보세요</p>
+        <h1 className="text-2xl font-bold">{selectedStudent.name}의 교재 현황</h1>
+        <p className="text-muted mt-1">과목별 교재 진행률을 확인하세요</p>
       </div>
 
       <GoalForm />

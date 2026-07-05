@@ -7,53 +7,50 @@ export interface Student {
 export interface Subject {
   id: string;
   name: string;
-  category: 'english' | 'math' | 'other';
+  category: 'korean' | 'english' | 'math' | 'science' | 'social';
   color: string;
   sort_order: number;
+}
+
+export interface Textbook {
+  id: string;
+  student_id: string;
+  subject_id: string;
+  name: string;
+  total_pages: number;
+  current_page: number;
+  progress_percent: number;
+  is_completed: boolean;
+  created_at: string;
+  updated_at: string;
+  subject?: Subject;
 }
 
 export interface StudyRecord {
   id: string;
   student_id: string;
+  textbook_id: string;
   subject_id: string;
   study_date: string;
-  textbook: string | null;
-  study_range: string | null;
-  duration_minutes: number;
+  start_page: number | null;
+  end_page: number;
+  pages_done: number | null;
+  duration_minutes: number | null;
   memo: string | null;
   created_at: string;
   updated_at: string;
-  // Joined fields
   subject?: Subject;
-}
-
-export interface WeeklyGoal {
-  id: string;
-  student_id: string;
-  subject_id: string;
-  year: number;
-  week_number: number;
-  target_minutes: number;
-  created_at: string;
-  // Joined fields
-  subject?: Subject;
-}
-
-export interface Textbook {
-  id: string;
-  subject_id: string;
-  name: string;
-  created_at: string;
+  textbook?: Textbook;
 }
 
 export interface DailyStats {
   date: string;
-  total_minutes: number;
+  total_pages: number;
   records: StudyRecord[];
 }
 
 export interface SubjectStats {
   subject: Subject;
-  total_minutes: number;
+  total_pages: number;
   record_count: number;
 }

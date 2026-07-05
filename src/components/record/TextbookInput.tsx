@@ -5,28 +5,29 @@ import { Textbook } from '@/types/database';
 import { getTextbooks } from '@/lib/api';
 
 interface TextbookInputProps {
+  studentId: string | null;
   subjectId: string | null;
   value: string;
   onChange: (value: string) => void;
 }
 
-export default function TextbookInput({ subjectId, value, onChange }: TextbookInputProps) {
+export default function TextbookInput({ studentId, subjectId, value, onChange }: TextbookInputProps) {
   const [suggestions, setSuggestions] = useState<Textbook[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function loadTextbooks() {
-      if (!subjectId) return;
+      if (!studentId || !subjectId) return;
       try {
-        const textbooks = await getTextbooks(subjectId);
+        const textbooks = await getTextbooks(studentId, subjectId);
         setSuggestions(textbooks);
       } catch (error) {
         console.error('Error loading textbooks:', error);
       }
     }
     loadTextbooks();
-  }, [subjectId]);
+  }, [studentId, subjectId]);
 
   const filteredSuggestions = useMemo(() => {
     if (value.trim() === '') {

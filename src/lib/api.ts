@@ -1,22 +1,29 @@
-import { Student, StudyRecord, Subject, WeeklyGoal, Textbook } from '@/types/database';
-import { startOfWeek, endOfWeek, getISOWeek, getYear, format } from 'date-fns';
+import { Student, StudyRecord, Subject, Textbook } from '@/types/database';
+import { startOfWeek, endOfWeek, format } from 'date-fns';
+
+interface TextbookPayload {
+  student_id: string;
+  subject_id: string;
+  name: string;
+  total_pages: number;
+}
 
 interface StudyRecordPayload {
   student_id: string;
-  subject_id: string;
+  textbook_id: string;
   study_date: string;
-  textbook?: string | null;
-  study_range?: string | null;
-  duration_minutes: number;
+  start_page?: number | null;
+  end_page: number;
+  duration_minutes?: number | null;
   memo?: string | null;
 }
 
 interface StudyRecordUpdatePayload {
-  subject_id?: string;
+  textbook_id?: string;
   study_date?: string;
-  textbook?: string | null;
-  study_range?: string | null;
-  duration_minutes?: number;
+  start_page?: number | null;
+  end_page?: number;
+  duration_minutes?: number | null;
   memo?: string | null;
 }
 
@@ -65,17 +72,28 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-// Students
 export async function getStudents(): Promise<Student[]> {
   return request<Student[]>('/api/students');
 }
 
-// Subjects
 export async function getSubjects(): Promise<Subject[]> {
   return request<Subject[]>('/api/subjects');
 }
 
-// Study Records
+export async function getTextbooks(
+  studentId: string,
+  subjectId?: string
+): Promise<Textbook[]> {
+  return request<Textbook[]>(buildUrl('/api/textbooks', { studentId, subjectId }));
+}
+
+export async function createTextbook(textbook: TextbookPayload): Promise<Textbook> {
+  return request<Textbook>('/api/textbooks', {
+    method: 'POST',
+    body: JSON.stringify(textbook),
+  });
+}
+
 export async function getStudyRecords(
   studentId: string,
   startDate?: string,
@@ -120,36 +138,18 @@ export async function deleteStudyRecord(id: string): Promise<void> {
   });
 }
 
-// Weekly Goals
-export async function getWeeklyGoals(
-  studentId: string,
-  year: number,
-  weekNumber: number
-): Promise<WeeklyGoal[]> {
-  return request<WeeklyGoal[]>(
-    buildUrl('/api/goals', { studentId, year, weekNumber })
-  );
+export function getPagesDone(record: StudyRecord): number {
+  if (record.pages_done !== null && record.pages_done !== undefined) {
+    return record.pages_done;
+  }
+
+  if (record.start_page !== null && record.start_page !== undefined) {
+    return Math.max(0, record.end_page - record.start_page + 1);
+  }
+
+  return 0;
 }
 
-export async function setWeeklyGoal(goal: {
-  student_id: string;
-  subject_id: string;
-  year: number;
-  week_number: number;
-  target_minutes: number;
-}): Promise<WeeklyGoal> {
-  return request<WeeklyGoal>('/api/goals', {
-    method: 'POST',
-    body: JSON.stringify(goal),
-  });
-}
-
-// Textbooks (autocomplete)
-export async function getTextbooks(subjectId?: string): Promise<Textbook[]> {
-  return request<Textbook[]>(buildUrl('/api/textbooks', { subjectId }));
-}
-
-// Statistics helpers
 export async function getWeeklyStats(studentId: string, date: Date = new Date()) {
   const weekStart = startOfWeek(date, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(date, { weekStartsOn: 1 });
@@ -160,26 +160,20 @@ export async function getWeeklyStats(studentId: string, date: Date = new Date())
     format(weekEnd, 'yyyy-MM-dd')
   );
 
-  const goals = await getWeeklyGoals(
-    studentId,
-    getYear(date),
-    getISOWeek(date)
-  );
-
-  // Group by subject
-  const subjectStats: Record<string, { total_minutes: number; records: StudyRecord[] }> = {};
+  const textbooks = await getTextbooks(studentId);
+  const subjectStats: Record<string, { total_pages: number; records: StudyRecord[] }> = {};
 
   records.forEach((record) => {
     if (!record.subject) return;
     const subjectId = record.subject_id;
     if (!subjectStats[subjectId]) {
-      subjectStats[subjectId] = { total_minutes: 0, records: [] };
+      subjectStats[subjectId] = { total_pages: 0, records: [] };
     }
-    subjectStats[subjectId].total_minutes += record.duration_minutes;
+    subjectStats[subjectId].total_pages += getPagesDone(record);
     subjectStats[subjectId].records.push(record);
   });
 
-  return { records, goals, subjectStats, weekStart, weekEnd };
+  return { records, textbooks, subjectStats, weekStart, weekEnd };
 }
 
 export async function getMonthlyStats(studentId: string, year: number, month: number) {
@@ -188,16 +182,14 @@ export async function getMonthlyStats(studentId: string, year: number, month: nu
   const endDate = `${year}-${String(month).padStart(2, '0')}-${lastDay}`;
 
   const records = await getStudyRecords(studentId, startDate, endDate);
-
-  // Group by date
-  const dailyStats: Record<string, { total_minutes: number; records: StudyRecord[] }> = {};
+  const dailyStats: Record<string, { total_pages: number; records: StudyRecord[] }> = {};
 
   records.forEach((record) => {
     const date = record.study_date;
     if (!dailyStats[date]) {
-      dailyStats[date] = { total_minutes: 0, records: [] };
+      dailyStats[date] = { total_pages: 0, records: [] };
     }
-    dailyStats[date].total_minutes += record.duration_minutes;
+    dailyStats[date].total_pages += getPagesDone(record);
     dailyStats[date].records.push(record);
   });
 

@@ -34,6 +34,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const body = (await request.json()) as StudyRecordUpdateInput;
 
     if (
+      body.end_page !== undefined &&
+      (!Number.isFinite(body.end_page) || body.end_page <= 0)
+    ) {
+      return badRequest('완료 페이지는 1 이상이어야 합니다.');
+    }
+
+    if (
+      body.duration_minutes !== null &&
       body.duration_minutes !== undefined &&
       (!Number.isFinite(body.duration_minutes) || body.duration_minutes <= 0)
     ) {

@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useStudent } from '@/components/layout/StudentContext';
-import { getMonthlyStats } from '@/lib/api';
+import { getMonthlyStats, getPagesDone } from '@/lib/api';
 import { StudyRecord } from '@/types/database';
-import { formatDuration, formatDateFull } from '@/lib/utils';
+import { formatDateFull } from '@/lib/utils';
 import {
   format,
   startOfMonth,
@@ -23,7 +23,7 @@ import { ChevronLeft, ChevronRight, Loader2, X } from 'lucide-react';
 interface DayData {
   date: Date;
   records: StudyRecord[];
-  totalMinutes: number;
+  totalPages: number;
 }
 
 export default function StudyCalendar() {
@@ -48,7 +48,7 @@ export default function StudyCalendar() {
           newDayData[date] = {
             date: new Date(date),
             records: data.records,
-            totalMinutes: data.total_minutes,
+            totalPages: data.total_pages,
           };
         });
         setDayData(newDayData);
@@ -68,11 +68,11 @@ export default function StudyCalendar() {
   const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
   const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
-  const getIntensity = (minutes: number): string => {
-    if (minutes === 0) return 'bg-card';
-    if (minutes < 30) return 'bg-primary/20';
-    if (minutes < 60) return 'bg-primary/40';
-    if (minutes < 120) return 'bg-primary/60';
+  const getIntensity = (pages: number): string => {
+    if (pages === 0) return 'bg-card';
+    if (pages < 10) return 'bg-primary/20';
+    if (pages < 30) return 'bg-primary/40';
+    if (pages < 60) return 'bg-primary/60';
     return 'bg-primary/80';
   };
 
@@ -80,7 +80,6 @@ export default function StudyCalendar() {
 
   return (
     <div className="space-y-4">
-      {/* Month Navigation */}
       <div className="flex items-center justify-between">
         <button
           onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
@@ -99,7 +98,6 @@ export default function StudyCalendar() {
         </button>
       </div>
 
-      {/* Calendar Grid */}
       <div className="bg-card border border-border rounded-xl p-4">
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -107,7 +105,6 @@ export default function StudyCalendar() {
           </div>
         ) : (
           <>
-            {/* Week day headers */}
             <div className="grid grid-cols-7 gap-1 mb-2">
               {weekDays.map((day, i) => (
                 <div
@@ -121,14 +118,13 @@ export default function StudyCalendar() {
               ))}
             </div>
 
-            {/* Calendar days */}
             <div className="grid grid-cols-7 gap-1">
               {calendarDays.map((day) => {
                 const dateKey = format(day, 'yyyy-MM-dd');
                 const data = dayData[dateKey];
                 const isCurrentMonth = isSameMonth(day, currentMonth);
                 const isToday = isSameDay(day, new Date());
-                const minutes = data?.totalMinutes || 0;
+                const pages = data?.totalPages || 0;
 
                 return (
                   <button
@@ -141,16 +137,14 @@ export default function StudyCalendar() {
                       ${isCurrentMonth ? '' : 'opacity-30'}
                       ${isToday ? 'ring-2 ring-primary' : ''}
                       ${data ? 'cursor-pointer hover:ring-2 hover:ring-primary/50' : ''}
-                      ${getIntensity(minutes)}
+                      ${getIntensity(pages)}
                     `}
                   >
                     <span className={isToday ? 'font-bold text-primary' : ''}>
                       {format(day, 'd')}
                     </span>
-                    {minutes > 0 && (
-                      <span className="text-[10px] text-muted mt-0.5">
-                        {minutes >= 60 ? `${Math.floor(minutes / 60)}h` : `${minutes}m`}
-                      </span>
+                    {pages > 0 && (
+                      <span className="text-[10px] text-muted mt-0.5">{pages}p</span>
                     )}
                   </button>
                 );
@@ -160,7 +154,6 @@ export default function StudyCalendar() {
         )}
       </div>
 
-      {/* Legend */}
       <div className="flex items-center justify-center gap-2 text-sm text-muted">
         <span>적음</span>
         <div className="flex gap-1">
@@ -172,7 +165,6 @@ export default function StudyCalendar() {
         <span>많음</span>
       </div>
 
-      {/* Selected Day Modal */}
       {selectedDay && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-card border border-border rounded-xl w-full max-w-md max-h-[80vh] overflow-hidden">
@@ -187,10 +179,8 @@ export default function StudyCalendar() {
             </div>
             <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
               <div className="text-center p-3 bg-primary/10 rounded-lg">
-                <p className="text-sm text-muted">총 학습 시간</p>
-                <p className="text-2xl font-bold text-primary">
-                  {formatDuration(selectedDay.totalMinutes)}
-                </p>
+                <p className="text-sm text-muted">완료 페이지</p>
+                <p className="text-2xl font-bold text-primary">{selectedDay.totalPages}p</p>
               </div>
 
               <div className="space-y-2">
@@ -203,19 +193,15 @@ export default function StudyCalendar() {
                       className="w-3 h-3 rounded-full flex-shrink-0 mt-1"
                       style={{ backgroundColor: record.subject?.color }}
                     />
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{record.subject?.name}</span>
-                        <span className="text-sm text-muted">
-                          {formatDuration(record.duration_minutes)}
-                        </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium truncate">{record.subject?.name}</span>
+                        <span className="text-sm text-muted">+{getPagesDone(record)}p</span>
                       </div>
-                      {record.textbook && (
-                        <p className="text-sm text-muted">{record.textbook}</p>
-                      )}
-                      {record.study_range && (
-                        <p className="text-sm text-muted">{record.study_range}</p>
-                      )}
+                      <p className="text-sm text-muted truncate">{record.textbook?.name}</p>
+                      <p className="text-sm text-muted">
+                        {record.start_page ?? '?'}p → {record.end_page}p
+                      </p>
                     </div>
                   </div>
                 ))}

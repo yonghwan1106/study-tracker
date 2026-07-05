@@ -60,8 +60,8 @@ export default function EditRecordPage() {
       {/* Header */}
       <div className="glass-card p-5 text-center animate-fade-in-up">
         <span className="text-4xl mb-2 block">✏️</span>
-        <h1 className="text-xl font-bold">학습 기록 수정</h1>
-        <p className="text-[var(--muted)] text-sm mt-1">기록을 수정해요</p>
+        <h1 className="text-xl font-bold">진도 기록 수정</h1>
+        <p className="text-[var(--muted)] text-sm mt-1">교재와 페이지를 수정해요</p>
       </div>
 
       <RecordForm

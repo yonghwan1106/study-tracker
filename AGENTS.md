@@ -12,7 +12,7 @@ npm run lint     # ESLint check
 
 ## Project Overview
 
-Study Tracker는 쌍둥이 중학생(박건호, 박도윤)의 학습 기록을 관리하는 반응형 웹앱입니다.
+Study Tracker는 쌍둥이 중학생(박건호, 박도윤)의 교재 진도와 학습 기록을 관리하는 반응형 웹앱입니다.
 
 **Tech Stack:** Next.js 16 (App Router) + TypeScript + Tailwind CSS + Neon Postgres
 
@@ -22,10 +22,9 @@ Study Tracker는 쌍둥이 중학생(박건호, 박도윤)의 학습 기록을 �
 
 모든 테이블은 `st_` prefix를 사용하여 같은 Postgres 데이터베이스 안의 다른 테이블과 공존합니다:
 - `st_students` - 학생 정보 (건호, 도윤)
-- `st_subjects` - 과목 (영어, 수학, 국어, 사회, 과학, 기타) with hex colors
-- `st_study_records` - 학습 기록 (날짜, 교재, 범위, 시간, 메모)
-- `st_weekly_goals` - 주간 목표
-- `st_textbooks` - 교재 자동완성 캐시
+- `st_subjects` - 과목 (국어, 영어, 수학, 과학, 사회) with hex colors
+- `st_textbooks` - 학생별/과목별 교재 마스터 (총 페이지, 현재 페이지, 진행률)
+- `st_study_records` - 날짜별 교재 진도 기록 (시작/완료 페이지, 선택 시간, 메모)
 
 ### Key Files
 
@@ -34,7 +33,7 @@ Study Tracker는 쌍둥이 중학생(박건호, 박도윤)의 학습 기록을 �
 | `src/lib/db.ts` | 서버 전용 Neon Postgres 연결 (`DATABASE_URL`) |
 | `src/lib/server/studyQueries.ts` | 모든 서버 DB 쿼리 함수 (CRUD) |
 | `src/lib/api.ts` | 클라이언트용 내부 API fetch 래퍼 + 통계 helper |
-| `src/lib/utils.ts` | formatDuration, formatDate, getToday, cn |
+| `src/lib/utils.ts` | formatDate, getToday, cn and shared formatting helpers |
 | `src/components/layout/StudentContext.tsx` | 학생 선택 상태 (React Context + localStorage) |
 
 ### Data Flow
@@ -47,13 +46,13 @@ Study Tracker는 쌍둥이 중학생(박건호, 박도윤)의 학습 기록을 �
 ### Routes
 
 ```
-/              → 홈 (오늘 요약, 주간 현황, 응원 멘트)
-/record        → 학습 기록 입력
-/record/edit/[id] → 기록 수정
+/              → 홈 (오늘 진도, 교재 진행률, 주간 현황)
+/record        → 교재 진도 입력
+/record/edit/[id] → 진도 기록 수정
 /history       → 기록 목록
-/calendar      → 캘린더 뷰 (히트맵)
+/calendar      → 진도 캘린더 뷰 (완료 페이지 히트맵)
 /stats         → 통계 대시보드
-/goals         → 주간 목표 설정
+/goals         → 교재 현황
 ```
 
 ## Key Patterns
@@ -61,21 +60,16 @@ Study Tracker는 쌍둥이 중학생(박건호, 박도윤)의 학습 기록을 �
 ### Neon Connection
 `src/lib/db.ts`에서 `DATABASE_URL`을 서버에서만 읽어 Neon Postgres에 연결합니다. 클라이언트 컴포넌트는 직접 DB에 접속하지 않고 `src/lib/api.ts`를 통해 내부 API 라우트를 호출합니다.
 
-### Encouragement System
-`src/app/page.tsx`의 `getEncouragementMessage()` - 학습 시간(분)에 따라 다른 응원 멘트:
-- 600+ min: 전설급 (👑🏆⚡)
-- 480+ min: 8시간+ (🔥💎🚀)
-- 360+ min: 6시간+ (⭐🎉💯)
-- 240+ min: 4시간+ (👍💪🌱)
-- 120+ min: 2시간+ (👌🌸📚)
+### Progress System
+교재는 `st_textbooks.total_pages`와 `st_textbooks.current_page`를 기준으로 진행률을 계산합니다. 진도 기록을 추가/수정/삭제하면 `src/lib/server/studyQueries.ts`에서 해당 교재의 `current_page`를 다시 계산합니다.
 
 ### Subject Colors
 과목별 색상이 DB에 정의되어 있으며, UI 전체에서 일관되게 사용:
+- 국어: #10B981 (green)
 - 영어: #3B82F6 (blue)
 - 수학: #EF4444 (red)
-- 국어: #10B981 (green)
-- 사회: #F59E0B (amber)
 - 과학: #8B5CF6 (purple)
+- 사회: #F59E0B (amber)
 
 ### Korean Localization
 - date-fns의 ko locale 사용

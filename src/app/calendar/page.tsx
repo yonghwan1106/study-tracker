@@ -26,8 +26,8 @@ export default function CalendarPage() {
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h1 className="text-2xl font-bold">{selectedStudent.name}의 학습 캘린더</h1>
-        <p className="text-muted mt-1">날짜를 클릭해서 상세 내용을 확인하세요</p>
+        <h1 className="text-2xl font-bold">{selectedStudent.name}의 진도 캘린더</h1>
+        <p className="text-muted mt-1">날짜를 클릭해서 교재별 진도를 확인하세요</p>
       </div>
 
       <StudyCalendar />

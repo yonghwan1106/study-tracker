@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useStudent } from '@/components/layout/StudentContext';
-import { getStudyRecords, deleteStudyRecord } from '@/lib/api';
+import { deleteStudyRecord, getPagesDone, getStudyRecords } from '@/lib/api';
 import { StudyRecord } from '@/types/database';
-import { formatDuration, formatDateFull } from '@/lib/utils';
+import { formatDateFull } from '@/lib/utils';
 import { Loader2, BookOpen, Trash2, Edit, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, subDays, addDays, parseISO } from 'date-fns';
 
@@ -35,11 +35,11 @@ export default function HistoryPage() {
   }, [loadRecords]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm('이 기록을 삭제하시겠습니까?')) return;
+    if (!confirm('이 진도 기록을 삭제하시겠습니까?')) return;
 
     try {
       await deleteStudyRecord(id);
-      setRecords(records.filter(r => r.id !== id));
+      setRecords(records.filter((record) => record.id !== id));
     } catch (error) {
       console.error('Error deleting record:', error);
       alert('삭제에 실패했습니다.');
@@ -67,9 +67,8 @@ export default function HistoryPage() {
     );
   }
 
-  // Group records by date
   const recordsByDate: Record<string, StudyRecord[]> = {};
-  records.forEach(record => {
+  records.forEach((record) => {
     if (!recordsByDate[record.study_date]) {
       recordsByDate[record.study_date] = [];
     }
@@ -81,10 +80,9 @@ export default function HistoryPage() {
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h1 className="text-2xl font-bold">{selectedStudent.name}의 학습 기록</h1>
+        <h1 className="text-2xl font-bold">{selectedStudent.name}의 진도 기록</h1>
       </div>
 
-      {/* Date Range Selector */}
       <div className="flex items-center justify-between gap-2 p-3 bg-card border border-border rounded-lg">
         <button
           onClick={() => moveDateRange(-7)}
@@ -115,7 +113,6 @@ export default function HistoryPage() {
         </button>
       </div>
 
-      {/* Records List */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -123,28 +120,28 @@ export default function HistoryPage() {
       ) : records.length === 0 ? (
         <div className="text-center py-12">
           <BookOpen className="w-12 h-12 text-muted mx-auto mb-3" />
-          <p className="text-muted">선택한 기간에 기록이 없습니다</p>
+          <p className="text-muted">선택한 기간에 진도 기록이 없습니다</p>
           <Link href="/record" className="text-primary text-sm hover:underline mt-2 inline-block">
-            학습 기록하기
+            진도 기록하기
           </Link>
         </div>
       ) : (
         <div className="space-y-6">
-          {sortedDates.map(date => {
+          {sortedDates.map((date) => {
             const dayRecords = recordsByDate[date];
-            const totalMinutes = dayRecords.reduce((sum, r) => sum + r.duration_minutes, 0);
+            const totalPages = dayRecords.reduce((sum, record) => sum + getPagesDone(record), 0);
 
             return (
               <div key={date} className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold">{formatDateFull(date)}</h3>
                   <span className="text-sm text-primary font-medium">
-                    총 {formatDuration(totalMinutes)}
+                    총 {totalPages}p
                   </span>
                 </div>
 
                 <div className="bg-card border border-border rounded-xl overflow-hidden divide-y divide-border">
-                  {dayRecords.map(record => (
+                  {dayRecords.map((record) => (
                     <div key={record.id} className="p-4">
                       <div className="flex items-start gap-3">
                         <div
@@ -155,14 +152,16 @@ export default function HistoryPage() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium">{record.subject?.name}</span>
                             <span className="text-sm text-muted">
-                              {formatDuration(record.duration_minutes)}
+                              +{getPagesDone(record)}p
                             </span>
                           </div>
-                          {record.textbook && (
-                            <p className="text-sm text-muted mt-1">{record.textbook}</p>
-                          )}
-                          {record.study_range && (
-                            <p className="text-sm text-muted">{record.study_range}</p>
+                          <p className="text-sm text-muted mt-1">{record.textbook?.name}</p>
+                          <p className="text-sm text-muted">
+                            {record.start_page ?? '?'}p → {record.end_page}p
+                            {record.textbook && ` · 전체 ${record.textbook.progress_percent}%`}
+                          </p>
+                          {record.duration_minutes && (
+                            <p className="text-xs text-muted mt-1">학습 시간 {record.duration_minutes}분</p>
                           )}
                           {record.memo && (
                             <p className="text-sm mt-2 p-2 bg-background rounded">

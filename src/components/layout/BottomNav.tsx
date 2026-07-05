@@ -8,7 +8,7 @@ const navItems = [
   { href: '/record', label: '기록', emoji: '✏️', activeEmoji: '📝' },
   { href: '/schedule', label: '시간표', emoji: '📋', activeEmoji: '🗓️' },
   { href: '/stats', label: '통계', emoji: '📊', activeEmoji: '📈' },
-  { href: '/goals', label: '목표', emoji: '🎯', activeEmoji: '🏆' },
+  { href: '/goals', label: '교재', emoji: '📚', activeEmoji: '📖' },
 ];
 
 export default function BottomNav() {

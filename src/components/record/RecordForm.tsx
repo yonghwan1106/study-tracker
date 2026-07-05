@@ -1,18 +1,35 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Subject, StudyRecord } from '@/types/database';
+import { Subject, StudyRecord, Textbook } from '@/types/database';
 import { useStudent } from '@/components/layout/StudentContext';
-import { getSubjects, createStudyRecord, updateStudyRecord } from '@/lib/api';
+import {
+  createStudyRecord,
+  createTextbook,
+  getSubjects,
+  getTextbooks,
+  updateStudyRecord,
+} from '@/lib/api';
 import { getToday } from '@/lib/utils';
 import SubjectSelect from './SubjectSelect';
-import DurationPicker from './DurationPicker';
-import TextbookInput from './TextbookInput';
 
 interface RecordFormProps {
   editRecord?: StudyRecord;
   onSuccess?: () => void;
+}
+
+const NEW_TEXTBOOK = '__new__';
+
+function toNumber(value: string) {
+  if (value.trim() === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function formatProgress(page: number, total: number) {
+  if (total <= 0) return 0;
+  return Math.min(100, Math.round((page / total) * 1000) / 10);
 }
 
 export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
@@ -20,36 +37,89 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
   const { selectedStudent } = useStudent();
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [textbooks, setTextbooks] = useState<Textbook[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // Form state
   const [subjectId, setSubjectId] = useState(editRecord?.subject_id || '');
   const [studyDate, setStudyDate] = useState(editRecord?.study_date || getToday());
-  const [textbook, setTextbook] = useState(editRecord?.textbook || '');
-  const [studyRange, setStudyRange] = useState(editRecord?.study_range || '');
-  const [duration, setDuration] = useState(editRecord?.duration_minutes || 30);
+  const [textbookId, setTextbookId] = useState(editRecord?.textbook_id || NEW_TEXTBOOK);
+  const [newTextbookName, setNewTextbookName] = useState('');
+  const [totalPages, setTotalPages] = useState('');
+  const [startPage, setStartPage] = useState(
+    editRecord?.start_page !== null && editRecord?.start_page !== undefined
+      ? String(editRecord.start_page)
+      : ''
+  );
+  const [endPage, setEndPage] = useState(editRecord?.end_page ? String(editRecord.end_page) : '');
+  const [duration, setDuration] = useState(
+    editRecord?.duration_minutes ? String(editRecord.duration_minutes) : ''
+  );
   const [memo, setMemo] = useState(editRecord?.memo || '');
 
   useEffect(() => {
-    async function loadSubjects() {
+    async function loadData() {
+      if (!selectedStudent) return;
+
+      setLoading(true);
       try {
-        const data = await getSubjects();
-        setSubjects(data);
-        if (!editRecord && data.length > 0) {
-          setSubjectId(data[0].id);
+        const [subjectsData, textbooksData] = await Promise.all([
+          getSubjects(),
+          getTextbooks(selectedStudent.id),
+        ]);
+        setSubjects(subjectsData);
+        setTextbooks(textbooksData);
+
+        if (!editRecord && subjectsData.length > 0) {
+          setSubjectId(subjectsData[0].id);
         }
       } catch (err) {
-        console.error('Error loading subjects:', err);
-        setError('과목을 불러오는데 실패했습니다.');
+        console.error('Error loading form data:', err);
+        setError('입력 정보를 불러오는데 실패했습니다.');
       } finally {
         setLoading(false);
       }
     }
-    loadSubjects();
-  }, [editRecord]);
+
+    loadData();
+  }, [editRecord, selectedStudent]);
+
+  const subjectTextbooks = useMemo(
+    () => textbooks.filter((textbook) => textbook.subject_id === subjectId),
+    [subjectId, textbooks]
+  );
+
+  const selectedTextbook = subjectTextbooks.find((textbook) => textbook.id === textbookId) ?? null;
+  const selectedSubject = subjects.find((subject) => subject.id === subjectId) ?? null;
+  const isNewTextbook = textbookId === NEW_TEXTBOOK;
+
+  useEffect(() => {
+    if (editRecord || !subjectId) return;
+
+    const firstTextbook = textbooks.find((textbook) => textbook.subject_id === subjectId);
+    setTextbookId(firstTextbook?.id ?? NEW_TEXTBOOK);
+  }, [editRecord, subjectId, textbooks]);
+
+  useEffect(() => {
+    if (editRecord || !selectedTextbook || startPage !== '') return;
+
+    const nextStart = Math.min(selectedTextbook.current_page + 1, selectedTextbook.total_pages);
+    setStartPage(String(nextStart || 1));
+  }, [editRecord, selectedTextbook, startPage]);
+
+  const activeTotalPages = selectedTextbook?.total_pages ?? toNumber(totalPages) ?? 0;
+  const startPageNumber = toNumber(startPage);
+  const endPageNumber = toNumber(endPage);
+  const pagesDone =
+    startPageNumber !== null && endPageNumber !== null && endPageNumber >= startPageNumber
+      ? endPageNumber - startPageNumber + 1
+      : null;
+  const previewProgress =
+    endPageNumber !== null && activeTotalPages > 0
+      ? formatProgress(endPageNumber, activeTotalPages)
+      : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,8 +134,22 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
       return;
     }
 
-    if (duration <= 0) {
-      setError('학습 시간을 입력해주세요.');
+    const end = toNumber(endPage);
+    const start = toNumber(startPage);
+    const durationMinutes = toNumber(duration);
+
+    if (!end || end <= 0) {
+      setError('오늘 완료한 페이지를 입력해주세요.');
+      return;
+    }
+
+    if (start !== null && start > end) {
+      setError('시작 페이지는 완료 페이지보다 클 수 없습니다.');
+      return;
+    }
+
+    if (duration.trim() !== '' && (!durationMinutes || durationMinutes <= 0)) {
+      setError('학습 시간은 비워두거나 1분 이상으로 입력해주세요.');
       return;
     }
 
@@ -73,13 +157,50 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
     setError(null);
 
     try {
+      let textbookForRecord = selectedTextbook;
+
+      if (isNewTextbook) {
+        const pages = toNumber(totalPages);
+
+        if (!newTextbookName.trim()) {
+          setError('새 교재명을 입력해주세요.');
+          setSaving(false);
+          return;
+        }
+
+        if (!pages || pages <= 0) {
+          setError('새 교재의 총 페이지를 입력해주세요.');
+          setSaving(false);
+          return;
+        }
+
+        textbookForRecord = await createTextbook({
+          student_id: selectedStudent.id,
+          subject_id: subjectId,
+          name: newTextbookName,
+          total_pages: pages,
+        });
+      }
+
+      if (!textbookForRecord) {
+        setError('기록할 교재를 선택해주세요.');
+        setSaving(false);
+        return;
+      }
+
+      if (end > textbookForRecord.total_pages) {
+        setError(`완료 페이지는 총 ${textbookForRecord.total_pages}페이지를 넘을 수 없습니다.`);
+        setSaving(false);
+        return;
+      }
+
       const recordData = {
         student_id: selectedStudent.id,
-        subject_id: subjectId,
+        textbook_id: textbookForRecord.id,
         study_date: studyDate,
-        textbook: textbook || null,
-        study_range: studyRange || null,
-        duration_minutes: duration,
+        start_page: start,
+        end_page: end,
+        duration_minutes: durationMinutes,
         memo: memo || null,
       };
 
@@ -96,10 +217,10 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
         } else {
           router.push('/');
         }
-      }, 1500);
+      }, 1000);
     } catch (err) {
       console.error('Error saving record:', err);
-      setError('저장에 실패했습니다. 다시 시도해주세요.');
+      setError(err instanceof Error ? err.message : '저장에 실패했습니다. 다시 시도해주세요.');
     } finally {
       setSaving(false);
     }
@@ -119,12 +240,10 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
       <div className="glass-card p-10 text-center animate-fade-in-up">
         <span className="text-6xl block mb-4 animate-celebrate">🎉</span>
         <h2 className="text-xl font-bold mb-2">저장 완료!</h2>
-        <p className="text-[var(--muted)]">학습 기록이 저장되었어요</p>
+        <p className="text-[var(--muted)]">교재 진도가 업데이트되었어요</p>
       </div>
     );
   }
-
-  const selectedSubject = subjects.find(s => s.id === subjectId);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -135,7 +254,6 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
         </div>
       )}
 
-      {/* Date */}
       <div className="glass-card p-5 space-y-3 animate-fade-in-up">
         <label className="flex items-center gap-2 text-sm font-bold">
           <span>📅</span>
@@ -150,57 +268,153 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
         />
       </div>
 
-      {/* Subject */}
       <div className="glass-card p-5 space-y-3 animate-fade-in-up stagger-1">
         <label className="flex items-center gap-2 text-sm font-bold">
           <span>📚</span>
-          과목 선택
+          과목
         </label>
         <SubjectSelect
           subjects={subjects}
           value={subjectId}
-          onChange={setSubjectId}
+          onChange={(value) => {
+            setSubjectId(value);
+            setStartPage('');
+            setEndPage('');
+          }}
         />
       </div>
 
-      {/* Textbook */}
-      <div className="glass-card p-5 space-y-3 animate-fade-in-up stagger-2">
+      <div className="glass-card p-5 space-y-4 animate-fade-in-up stagger-2">
         <label className="flex items-center gap-2 text-sm font-bold">
           <span>📖</span>
-          교재명
+          교재
         </label>
-        <TextbookInput
-          subjectId={subjectId}
-          value={textbook}
-          onChange={setTextbook}
-        />
+
+        <select
+          value={textbookId}
+          onChange={(e) => {
+            setTextbookId(e.target.value);
+            setStartPage('');
+            setEndPage('');
+          }}
+          className="w-full"
+        >
+          {subjectTextbooks.map((textbook) => (
+            <option key={textbook.id} value={textbook.id}>
+              {textbook.name} ({textbook.current_page}/{textbook.total_pages}p)
+            </option>
+          ))}
+          <option value={NEW_TEXTBOOK}>+ 새 교재 등록</option>
+        </select>
+
+        {isNewTextbook ? (
+          <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
+            <input
+              type="text"
+              value={newTextbookName}
+              onChange={(e) => setNewTextbookName(e.target.value)}
+              placeholder="교재명 입력"
+              className="w-full"
+            />
+            <input
+              type="number"
+              min={1}
+              value={totalPages}
+              onChange={(e) => setTotalPages(e.target.value)}
+              placeholder="총 페이지"
+              className="w-full"
+            />
+          </div>
+        ) : selectedTextbook ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-[var(--muted)]">현재 진도</span>
+              <span className="font-bold">
+                {selectedTextbook.current_page}/{selectedTextbook.total_pages}p · {selectedTextbook.progress_percent}%
+              </span>
+            </div>
+            <div className="progress-bar">
+              <div
+                className="progress-bar-fill"
+                style={{
+                  width: `${selectedTextbook.progress_percent}%`,
+                  background: selectedSubject?.color,
+                }}
+              />
+            </div>
+          </div>
+        ) : null}
       </div>
 
-      {/* Study Range */}
-      <div className="glass-card p-5 space-y-3 animate-fade-in-up stagger-3">
+      <div className="glass-card p-5 space-y-4 animate-fade-in-up stagger-3">
         <label className="flex items-center gap-2 text-sm font-bold">
           <span>📝</span>
-          학습 범위
+          오늘 진도
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <span className="text-xs text-[var(--muted)]">시작 페이지</span>
+            <input
+              type="number"
+              min={0}
+              value={startPage}
+              onChange={(e) => setStartPage(e.target.value)}
+              placeholder="예: 1"
+              className="w-full"
+            />
+          </div>
+          <div className="space-y-2">
+            <span className="text-xs text-[var(--muted)]">완료 페이지</span>
+            <input
+              type="number"
+              min={1}
+              value={endPage}
+              onChange={(e) => setEndPage(e.target.value)}
+              placeholder="예: 18"
+              className="w-full"
+            />
+          </div>
+        </div>
+
+        {previewProgress !== null && activeTotalPages > 0 && (
+          <div className="rounded-2xl p-4 space-y-2" style={{ background: `${selectedSubject?.color ?? '#8b9aaa'}12` }}>
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">저장 후 예상 진도</span>
+              <span className="font-bold" style={{ color: selectedSubject?.color }}>
+                {endPageNumber}/{activeTotalPages}p · {previewProgress}%
+              </span>
+            </div>
+            <div className="progress-bar">
+              <div
+                className="progress-bar-fill"
+                style={{
+                  width: `${previewProgress}%`,
+                  background: selectedSubject?.color,
+                }}
+              />
+            </div>
+            {pagesDone !== null && (
+              <p className="text-xs text-[var(--muted)]">오늘 기록될 분량: {pagesDone}페이지</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="glass-card p-5 space-y-3 animate-fade-in-up stagger-4">
+        <label className="flex items-center gap-2 text-sm font-bold">
+          <span>⏱️</span>
+          학습 시간 <span className="font-normal text-[var(--muted)]">(선택)</span>
         </label>
         <input
-          type="text"
-          value={studyRange}
-          onChange={(e) => setStudyRange(e.target.value)}
-          placeholder="예: 2단원 p.35~42"
+          type="number"
+          min={1}
+          value={duration}
+          onChange={(e) => setDuration(e.target.value)}
+          placeholder="분 단위로 입력"
           className="w-full"
         />
       </div>
 
-      {/* Duration */}
-      <div className="glass-card p-5 space-y-3 animate-fade-in-up stagger-4">
-        <label className="flex items-center gap-2 text-sm font-bold">
-          <span>⏱️</span>
-          학습 시간
-        </label>
-        <DurationPicker value={duration} onChange={setDuration} />
-      </div>
-
-      {/* Memo */}
       <div className="glass-card p-5 space-y-3 animate-fade-in-up stagger-5">
         <label className="flex items-center gap-2 text-sm font-bold">
           <span>💬</span>
@@ -209,13 +423,12 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
         <textarea
           value={memo}
           onChange={(e) => setMemo(e.target.value)}
-          placeholder="부모님 코멘트나 피드백을 입력하세요"
+          placeholder="오답, 단원명, 부모님 코멘트를 남겨요"
           rows={3}
           className="w-full resize-none"
         />
       </div>
 
-      {/* Submit */}
       <button
         type="submit"
         disabled={saving || !selectedStudent}
@@ -237,7 +450,7 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
         ) : (
           <>
             <span className="text-xl">✨</span>
-            {editRecord ? '수정 완료' : '기록 저장하기'}
+            {editRecord ? '진도 수정하기' : '진도 저장하기'}
           </>
         )}
       </button>

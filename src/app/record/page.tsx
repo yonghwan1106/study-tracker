@@ -45,8 +45,8 @@ export default function RecordPage() {
         }}
       >
         <span className="text-4xl mb-2 block">{config.emoji}</span>
-        <h1 className="text-xl font-bold">{selectedStudent.name.slice(1)}의 학습 기록</h1>
-        <p className="text-[var(--muted)] text-sm mt-1">오늘 공부한 내용을 기록해요 ✨</p>
+        <h1 className="text-xl font-bold">{selectedStudent.name.slice(1)}의 교재 진도</h1>
+        <p className="text-[var(--muted)] text-sm mt-1">오늘 어디까지 풀었는지 기록해요 ✨</p>
       </div>
 
       <RecordForm />

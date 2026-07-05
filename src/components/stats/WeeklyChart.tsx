@@ -4,14 +4,13 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Subject } from '@/types/database';
 
 interface WeeklyChartProps {
-  data: { subject: Subject; minutes: number }[];
+  data: { subject: Subject; pages: number }[];
 }
 
 export default function WeeklyChart({ data }: WeeklyChartProps) {
   const chartData = data.map(item => ({
     name: item.subject.name,
-    minutes: item.minutes,
-    hours: Math.round(item.minutes / 60 * 10) / 10,
+    pages: item.pages,
     color: item.subject.color,
   }));
 
@@ -23,21 +22,13 @@ export default function WeeklyChart({ data }: WeeklyChartProps) {
     );
   }
 
-  const formatTooltip = (value: number) => {
-    const hours = Math.floor(value / 60);
-    const mins = value % 60;
-    if (hours === 0) return `${mins}분`;
-    if (mins === 0) return `${hours}시간`;
-    return `${hours}시간 ${mins}분`;
-  };
-
   return (
     <ResponsiveContainer width="100%" height={250}>
       <BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 20 }}>
         <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
         <XAxis
           type="number"
-          tickFormatter={(value) => `${Math.round(value / 60)}h`}
+          tickFormatter={(value) => `${value}p`}
           fontSize={12}
         />
         <YAxis
@@ -47,14 +38,14 @@ export default function WeeklyChart({ data }: WeeklyChartProps) {
           fontSize={12}
         />
         <Tooltip
-          formatter={(value) => [formatTooltip(Number(value)), '학습 시간']}
+          formatter={(value) => [`${Number(value)}p`, '완료 페이지']}
           contentStyle={{
             backgroundColor: 'var(--card)',
             border: '1px solid var(--border)',
             borderRadius: '8px',
           }}
         />
-        <Bar dataKey="minutes" radius={[0, 4, 4, 0]}>
+        <Bar dataKey="pages" radius={[0, 4, 4, 0]}>
           {chartData.map((entry, index) => (
             <Cell key={`cell-${index}`} fill={entry.color} />
           ))}
