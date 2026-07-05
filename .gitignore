@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+/.playwright-mcp/
+/.omc/
 
 # next.js
 /.next/
@@ -36,6 +38,7 @@ yarn-error.log*
 
 # vercel
 .vercel
+.neon
 
 # typescript
 *.tsbuildinfo

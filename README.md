@@ -12,9 +12,9 @@
 
 ## 기술 스택
 
-- **Frontend**: Next.js 14 (App Router)
+- **Frontend**: Next.js 16 (App Router)
 - **Styling**: Tailwind CSS
-- **Database**: Supabase (PostgreSQL)
+- **Database**: Neon Postgres
 - **Charts**: Recharts
 - **Icons**: Lucide React
 - **Date**: date-fns
@@ -27,19 +27,18 @@
 npm install
 ```
 
-### 2. Supabase 설정
+### 2. Neon Postgres 설정
 
-1. [Supabase](https://supabase.com)에서 새 프로젝트 생성
-2. SQL Editor에서 `supabase/schema.sql` 실행
-3. `.env.local.example`을 `.env.local`로 복사 후 Supabase URL과 API Key 입력
+1. [Neon](https://neon.com)에서 새 프로젝트 생성
+2. SQL Editor에서 `database/schema.sql` 실행
+3. `.env.local.example`을 `.env.local`로 복사 후 Neon connection string 입력
 
 ```bash
 cp .env.local.example .env.local
 ```
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+DATABASE_URL="postgresql://user:password@ep-example-pooler.region.aws.neon.tech/dbname?sslmode=require&channel_binding=require"
 ```
 
 ### 3. 개발 서버 실행
@@ -55,7 +54,7 @@ http://localhost:3000 에서 확인
 ### Vercel 배포
 
 1. [Vercel](https://vercel.com)에 GitHub 저장소 연결
-2. Environment Variables에 Supabase 정보 입력
+2. Environment Variables에 `DATABASE_URL` 입력
 3. Deploy
 
 ## 프로젝트 구조
@@ -76,8 +75,9 @@ src/
 │   ├── calendar/         # StudyCalendar
 │   └── goals/            # GoalForm
 ├── lib/
-│   ├── supabase.ts       # Supabase client
-│   ├── api.ts            # API functions
+│   ├── api.ts            # Client-side API wrappers
+│   ├── db.ts             # Neon server-side connection
+│   ├── server/           # Server-side database queries
 │   └── utils.ts          # Utility functions
 └── types/
     └── database.ts       # TypeScript types

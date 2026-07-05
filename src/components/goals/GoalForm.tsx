@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Subject, WeeklyGoal } from '@/types/database';
+import { WeeklyGoal } from '@/types/database';
 import { useStudent } from '@/components/layout/StudentContext';
 import { getSubjects, getWeeklyGoals, setWeeklyGoal, getWeeklyStats } from '@/lib/api';
 import { formatDuration } from '@/lib/utils';
@@ -15,7 +15,6 @@ interface GoalWithProgress extends WeeklyGoal {
 
 export default function GoalForm() {
   const { selectedStudent } = useStudent();
-  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [goals, setGoals] = useState<GoalWithProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -37,9 +36,6 @@ export default function GoalForm() {
           getWeeklyGoals(selectedStudent.id, year, weekNumber),
           getWeeklyStats(selectedStudent.id),
         ]);
-
-        setSubjects(subjectsData);
-
         // Merge goals with progress
         const goalsWithProgress: GoalWithProgress[] = subjectsData.map((subject) => {
           const existingGoal = goalsData.find(g => g.subject_id === subject.id);

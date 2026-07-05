@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Textbook } from '@/types/database';
 import { getTextbooks } from '@/lib/api';
 
@@ -13,7 +13,6 @@ interface TextbookInputProps {
 export default function TextbookInput({ subjectId, value, onChange }: TextbookInputProps) {
   const [suggestions, setSuggestions] = useState<Textbook[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [filteredSuggestions, setFilteredSuggestions] = useState<Textbook[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -29,15 +28,14 @@ export default function TextbookInput({ subjectId, value, onChange }: TextbookIn
     loadTextbooks();
   }, [subjectId]);
 
-  useEffect(() => {
+  const filteredSuggestions = useMemo(() => {
     if (value.trim() === '') {
-      setFilteredSuggestions(suggestions.slice(0, 5));
-    } else {
-      const filtered = suggestions.filter(t =>
-        t.name.toLowerCase().includes(value.toLowerCase())
-      ).slice(0, 5);
-      setFilteredSuggestions(filtered);
+      return suggestions.slice(0, 5);
     }
+
+    return suggestions.filter(t =>
+      t.name.toLowerCase().includes(value.toLowerCase())
+    ).slice(0, 5);
   }, [value, suggestions]);
 
   const handleSelect = (textbook: Textbook) => {

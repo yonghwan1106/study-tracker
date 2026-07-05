@@ -77,10 +77,10 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
         student_id: selectedStudent.id,
         subject_id: subjectId,
         study_date: studyDate,
-        textbook: textbook || undefined,
-        study_range: studyRange || undefined,
+        textbook: textbook || null,
+        study_range: studyRange || null,
         duration_minutes: duration,
-        memo: memo || undefined,
+        memo: memo || null,
       };
 
       if (editRecord) {

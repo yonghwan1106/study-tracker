@@ -1,16 +1,19 @@
 'use client';
 
+import Image from 'next/image';
 import { useStudent } from './StudentContext';
 
-const studentConfig: Record<string, { emoji: string; color: string; bgColor: string; glowColor: string }> = {
+const studentConfig: Record<string, { emoji: string; avatar?: string; color: string; bgColor: string; glowColor: string }> = {
   '박건호': {
     emoji: '🧑‍💻',
+    avatar: '/students/gunho.jpg',
     color: '#4f8fea',
     bgColor: 'rgba(79, 143, 234, 0.15)',
     glowColor: 'rgba(79, 143, 234, 0.3)',
   },
   '박도윤': {
     emoji: '🎨',
+    avatar: '/students/doyoon.jpg',
     color: '#34c88a',
     bgColor: 'rgba(52, 200, 138, 0.15)',
     glowColor: 'rgba(52, 200, 138, 0.3)',
@@ -57,14 +60,32 @@ export default function StudentSelector() {
               border: isSelected ? `2px solid ${config.color}40` : '2px solid transparent',
             }}
           >
-            <span
-              className="text-xl transition-transform duration-300"
-              style={{
-                transform: isSelected ? 'scale(1.1)' : 'scale(1)',
-              }}
-            >
-              {config.emoji}
-            </span>
+            {config.avatar ? (
+              <span
+                className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border-2 bg-white/80 transition-transform duration-300"
+                style={{
+                  borderColor: isSelected ? `${config.color}55` : 'transparent',
+                  transform: isSelected ? 'scale(1.08)' : 'scale(1)',
+                }}
+              >
+                <Image
+                  src={config.avatar}
+                  alt={`${student.name} 얼굴`}
+                  fill
+                  sizes="32px"
+                  className="object-cover"
+                />
+              </span>
+            ) : (
+              <span
+                className="text-xl transition-transform duration-300"
+                style={{
+                  transform: isSelected ? 'scale(1.1)' : 'scale(1)',
+                }}
+              >
+                {config.emoji}
+              </span>
+            )}
             <span className="text-sm">{student.name.slice(1)}</span>
             {isSelected && (
               <span

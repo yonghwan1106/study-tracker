@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Student } from '@/types/database';
-import { supabase } from '@/lib/supabase';
+import { getStudents } from '@/lib/api';
 
 interface StudentContextType {
   students: Student[];
@@ -22,33 +22,28 @@ export function StudentProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     async function fetchStudents() {
-      const { data, error } = await supabase
-        .from('st_students')
-        .select('*')
-        .order('name');
+      try {
+        const data = await getStudents();
 
-      if (error) {
-        console.error('Error fetching students:', error);
-        setLoading(false);
-        return;
-      }
+        setStudents(data);
 
-      setStudents(data || []);
-
-      // Restore last selected student from localStorage
-      const savedStudentId = localStorage.getItem(STORAGE_KEY);
-      if (savedStudentId && data) {
-        const savedStudent = data.find(s => s.id === savedStudentId);
-        if (savedStudent) {
-          setSelectedStudentState(savedStudent);
+        // Restore last selected student from localStorage
+        const savedStudentId = localStorage.getItem(STORAGE_KEY);
+        if (savedStudentId) {
+          const savedStudent = data.find(s => s.id === savedStudentId);
+          if (savedStudent) {
+            setSelectedStudentState(savedStudent);
+          } else if (data.length > 0) {
+            setSelectedStudentState(data[0]);
+          }
         } else if (data.length > 0) {
           setSelectedStudentState(data[0]);
         }
-      } else if (data && data.length > 0) {
-        setSelectedStudentState(data[0]);
+      } catch (error) {
+        console.error('Error fetching students:', error);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     }
 
     fetchStudents();

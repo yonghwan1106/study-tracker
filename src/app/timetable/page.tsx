@@ -14,12 +14,6 @@ const PERIODS = [
   { num: 7, start: '15:20', end: '16:05' },
 ];
 
-type SubjectKey =
-  | '국어' | '수학' | '영어' | '사회' | '과학'
-  | '체육' | '미술' | '음악'
-  | '도덕' | '정보' | '한문' | '진로' | '스포츠' | '주제'
-  | '';
-
 interface SubjectStyle {
   bg: string;
   text: string;
@@ -100,7 +94,7 @@ function getSubjectCounts(timetable: string[][]): { name: string; count: number 
 
 export default function TimetablePage() {
   const { selectedStudent } = useStudent();
-  const todayIdx = useMemo(getTodayDayIndex, []);
+  const todayIdx = useMemo(() => getTodayDayIndex(), []);
 
   const isGunho = selectedStudent?.name === '박건호';
   const timetable = isGunho ? timetable6 : timetable5;

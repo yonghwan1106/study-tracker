@@ -1,16 +1,78 @@
-import { supabase } from './supabase';
-import { StudyRecord, Subject, WeeklyGoal, Textbook } from '@/types/database';
+import { Student, StudyRecord, Subject, WeeklyGoal, Textbook } from '@/types/database';
 import { startOfWeek, endOfWeek, getISOWeek, getYear, format } from 'date-fns';
+
+interface StudyRecordPayload {
+  student_id: string;
+  subject_id: string;
+  study_date: string;
+  textbook?: string | null;
+  study_range?: string | null;
+  duration_minutes: number;
+  memo?: string | null;
+}
+
+interface StudyRecordUpdatePayload {
+  subject_id?: string;
+  study_date?: string;
+  textbook?: string | null;
+  study_range?: string | null;
+  duration_minutes?: number;
+  memo?: string | null;
+}
+
+function buildUrl(path: string, params: Record<string, string | number | undefined>) {
+  const searchParams = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') {
+      searchParams.set(key, String(value));
+    }
+  });
+
+  const queryString = searchParams.toString();
+  return queryString ? `${path}?${queryString}` : path;
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers = new Headers(options.headers);
+  headers.set('Content-Type', 'application/json');
+
+  const response = await fetch(path, {
+    ...options,
+    cache: 'no-store',
+    headers,
+  });
+
+  if (!response.ok) {
+    let message = '요청 처리에 실패했습니다.';
+
+    try {
+      const body = await response.json();
+      if (body?.error) {
+        message = body.error;
+      }
+    } catch {
+      // Keep the default message when the response is not JSON.
+    }
+
+    throw new Error(message);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  return response.json() as Promise<T>;
+}
+
+// Students
+export async function getStudents(): Promise<Student[]> {
+  return request<Student[]>('/api/students');
+}
 
 // Subjects
 export async function getSubjects(): Promise<Subject[]> {
-  const { data, error } = await supabase
-    .from('st_subjects')
-    .select('*')
-    .order('sort_order');
-
-  if (error) throw error;
-  return data || [];
+  return request<Subject[]>('/api/subjects');
 }
 
 // Study Records
@@ -19,94 +81,43 @@ export async function getStudyRecords(
   startDate?: string,
   endDate?: string
 ): Promise<StudyRecord[]> {
-  let query = supabase
-    .from('st_study_records')
-    .select('*')
-    .eq('student_id', studentId)
-    .order('study_date', { ascending: false })
-    .order('created_at', { ascending: false });
-
-  if (startDate) {
-    query = query.gte('study_date', startDate);
-  }
-  if (endDate) {
-    query = query.lte('study_date', endDate);
-  }
-
-  const { data, error } = await query;
-  if (error) throw error;
-  return data || [];
+  return request<StudyRecord[]>(
+    buildUrl('/api/records', { studentId, startDate, endDate })
+  );
 }
 
 export async function getStudyRecordsByDate(
   studentId: string,
   date: string
 ): Promise<StudyRecord[]> {
-  const { data, error } = await supabase
-    .from('st_study_records')
-    .select('*')
-    .eq('student_id', studentId)
-    .eq('study_date', date)
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return data || [];
+  return request<StudyRecord[]>(buildUrl('/api/records', { studentId, date }));
 }
 
-export async function createStudyRecord(record: {
-  student_id: string;
-  subject_id: string;
-  study_date: string;
-  textbook?: string;
-  study_range?: string;
-  duration_minutes: number;
-  memo?: string;
-}): Promise<StudyRecord> {
-  const { data, error } = await supabase
-    .from('st_study_records')
-    .insert(record)
-    .select('*')
-    .single();
+export async function getStudyRecord(id: string): Promise<StudyRecord> {
+  return request<StudyRecord>(`/api/records/${id}`);
+}
 
-  if (error) throw error;
-
-  // Save textbook for autocomplete if provided
-  if (record.textbook) {
-    await saveTextbook(record.subject_id, record.textbook);
-  }
-
-  return data;
+export async function createStudyRecord(record: StudyRecordPayload): Promise<StudyRecord> {
+  return request<StudyRecord>('/api/records', {
+    method: 'POST',
+    body: JSON.stringify(record),
+  });
 }
 
 export async function updateStudyRecord(
   id: string,
-  record: Partial<{
-    subject_id: string;
-    study_date: string;
-    textbook: string;
-    study_range: string;
-    duration_minutes: number;
-    memo: string;
-  }>
+  record: StudyRecordUpdatePayload
 ): Promise<StudyRecord> {
-  const { data, error } = await supabase
-    .from('st_study_records')
-    .update({ ...record, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select('*')
-    .single();
-
-  if (error) throw error;
-  return data;
+  return request<StudyRecord>(`/api/records/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(record),
+  });
 }
 
 export async function deleteStudyRecord(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('st_study_records')
-    .delete()
-    .eq('id', id);
-
-  if (error) throw error;
+  await request<void>(`/api/records/${id}`, {
+    method: 'DELETE',
+  });
 }
 
 // Weekly Goals
@@ -115,15 +126,9 @@ export async function getWeeklyGoals(
   year: number,
   weekNumber: number
 ): Promise<WeeklyGoal[]> {
-  const { data, error } = await supabase
-    .from('st_weekly_goals')
-    .select('*')
-    .eq('student_id', studentId)
-    .eq('year', year)
-    .eq('week_number', weekNumber);
-
-  if (error) throw error;
-  return data || [];
+  return request<WeeklyGoal[]>(
+    buildUrl('/api/goals', { studentId, year, weekNumber })
+  );
 }
 
 export async function setWeeklyGoal(goal: {
@@ -133,49 +138,15 @@ export async function setWeeklyGoal(goal: {
   week_number: number;
   target_minutes: number;
 }): Promise<WeeklyGoal> {
-  const { data, error } = await supabase
-    .from('st_weekly_goals')
-    .upsert(goal, {
-      onConflict: 'student_id,subject_id,year,week_number',
-    })
-    .select('*')
-    .single();
-
-  if (error) throw error;
-  return data;
+  return request<WeeklyGoal>('/api/goals', {
+    method: 'POST',
+    body: JSON.stringify(goal),
+  });
 }
 
 // Textbooks (autocomplete)
 export async function getTextbooks(subjectId?: string): Promise<Textbook[]> {
-  let query = supabase
-    .from('st_textbooks')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(50);
-
-  if (subjectId) {
-    query = query.eq('subject_id', subjectId);
-  }
-
-  const { data, error } = await query;
-  if (error) throw error;
-  return data || [];
-}
-
-async function saveTextbook(subjectId: string, name: string): Promise<void> {
-  // Check if textbook already exists
-  const { data: existing } = await supabase
-    .from('st_textbooks')
-    .select('id')
-    .eq('subject_id', subjectId)
-    .eq('name', name)
-    .single();
-
-  if (!existing) {
-    await supabase
-      .from('st_textbooks')
-      .insert({ subject_id: subjectId, name });
-  }
+  return request<Textbook[]>(buildUrl('/api/textbooks', { subjectId }));
 }
 
 // Statistics helpers

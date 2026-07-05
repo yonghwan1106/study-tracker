@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react';
 import { useStudent } from '@/components/layout/StudentContext';
 import { getWeeklyStats, getStudyRecordsByDate } from '@/lib/api';
 import { StudyRecord, Subject } from '@/types/database';
-import { formatDuration, formatDate, getToday } from '@/lib/utils';
+import { formatDuration, getToday } from '@/lib/utils';
 import WeeklyChart from '@/components/stats/WeeklyChart';
-import { Loader2, TrendingUp, Clock, BookOpen, Calendar } from 'lucide-react';
-import { format, startOfWeek, endOfWeek } from 'date-fns';
+import { Loader2, TrendingUp, Clock, BookOpen } from 'lucide-react';
+import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 
 export default function StatsPage() {

@@ -220,7 +220,7 @@ function isGoldenTime(block: TimeBlock): boolean {
 }
 
 export default function SchedulePage() {
-  const todayTab = useMemo(getTodayTab, []);
+  const todayTab = useMemo(() => getTodayTab(), []);
   const [activeTab, setActiveTab] = useState<DayType>(todayTab);
   const blocks = schedules[activeTab];
   const studyMinutes = getStudyMinutes(blocks);
@@ -235,7 +235,7 @@ export default function SchedulePage() {
     return [...map.entries()]
       .map(([cat, mins]) => ({ cat, mins }))
       .sort((a, b) => b.mins - a.mins);
-  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [blocks]);
 
   return (
     <div className="space-y-4 pb-4">

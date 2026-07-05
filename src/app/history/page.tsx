@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useStudent } from '@/components/layout/StudentContext';
 import { getStudyRecords, deleteStudyRecord } from '@/lib/api';
@@ -16,7 +16,7 @@ export default function HistoryPage() {
   const [startDate, setStartDate] = useState(() => format(subDays(new Date(), 7), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
 
-  const loadRecords = async () => {
+  const loadRecords = useCallback(async () => {
     if (!selectedStudent) return;
 
     setLoading(true);
@@ -28,11 +28,11 @@ export default function HistoryPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedStudent, startDate, endDate]);
 
   useEffect(() => {
     loadRecords();
-  }, [selectedStudent, startDate, endDate]);
+  }, [loadRecords]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('이 기록을 삭제하시겠습니까?')) return;

@@ -1,15 +1,26 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useStudent } from '@/components/layout/StudentContext';
 import { getStudyRecordsByDate, getWeeklyStats } from '@/lib/api';
 import { StudyRecord, Subject } from '@/types/database';
 import { formatDuration, formatDate, getToday } from '@/lib/utils';
 
-const studentConfig: Record<string, { emoji: string; greeting: string; color: string }> = {
-  '박건호': { emoji: '🧑‍💻', greeting: '오늘도 화이팅!', color: '#4f8fea' },
-  '박도윤': { emoji: '🎨', greeting: '오늘도 힘내자!', color: '#34c88a' },
+const studentConfig: Record<string, { emoji: string; avatar?: string; greeting: string; color: string }> = {
+  '박건호': {
+    emoji: '🧑‍💻',
+    avatar: '/students/gunho.jpg',
+    greeting: '오늘도 화이팅!',
+    color: '#4f8fea',
+  },
+  '박도윤': {
+    emoji: '🎨',
+    avatar: '/students/doyoon.jpg',
+    greeting: '오늘도 힘내자!',
+    color: '#34c88a',
+  },
 };
 
 const motivationalMessages = [
@@ -190,7 +201,26 @@ export default function Home() {
           borderColor: `${config.color}30`,
         }}
       >
-        <div className="text-5xl mb-3 animate-float">{config.emoji}</div>
+        {config.avatar ? (
+          <div
+            className="relative mx-auto mb-3 h-20 w-20 overflow-hidden rounded-full border-4 bg-white/80 shadow-lg animate-float"
+            style={{
+              borderColor: `${config.color}40`,
+              boxShadow: `0 10px 30px ${config.color}30`,
+            }}
+          >
+            <Image
+              src={config.avatar}
+              alt={`${selectedStudent.name} 얼굴`}
+              fill
+              priority
+              sizes="80px"
+              className="object-cover"
+            />
+          </div>
+        ) : (
+          <div className="text-5xl mb-3 animate-float">{config.emoji}</div>
+        )}
         <h1 className="text-2xl font-bold mb-1">
           안녕, {selectedStudent.name.slice(1)}!
         </h1>

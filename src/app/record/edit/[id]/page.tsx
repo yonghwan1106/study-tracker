@@ -2,32 +2,24 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
 import { StudyRecord } from '@/types/database';
 import RecordForm from '@/components/record/RecordForm';
-import { useStudent } from '@/components/layout/StudentContext';
+import { getStudyRecord } from '@/lib/api';
 
 export default function EditRecordPage() {
   const params = useParams();
   const router = useRouter();
-  const { selectedStudent } = useStudent();
   const [record, setRecord] = useState<StudyRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadRecord() {
-      if (!params.id) return;
+      const id = Array.isArray(params.id) ? params.id[0] : params.id;
+      if (!id) return;
 
       try {
-        const { data, error } = await supabase
-          .from('st_study_records')
-          .select('*')
-          .eq('id', params.id)
-          .single();
-
-        if (error) throw error;
-        setRecord(data);
+        setRecord(await getStudyRecord(id));
       } catch (err) {
         console.error('Error loading record:', err);
         setError('기록을 불러오는데 실패했습니다.');
