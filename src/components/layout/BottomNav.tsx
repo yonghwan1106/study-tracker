@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 const navItems = [
   { href: '/', label: '홈', emoji: '🏠', activeEmoji: '🏡' },
   { href: '/record', label: '기록', emoji: '✏️', activeEmoji: '📝' },
-  { href: '/schedule', label: '시간표', emoji: '📋', activeEmoji: '🗓️' },
+  { href: '/events', label: '일정', emoji: '📅', activeEmoji: '🗓️' },
   { href: '/stats', label: '통계', emoji: '📊', activeEmoji: '📈' },
   { href: '/goals', label: '교재', emoji: '📚', activeEmoji: '📖' },
 ];
@@ -22,7 +22,9 @@ export default function BottomNav() {
       {/* Safe area padding for iOS */}
       <div className="relative flex items-center justify-around h-20 pb-2">
         {navItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive = pathname === item.href || (
+            item.href !== '/' && pathname.startsWith(`${item.href}/`)
+          );
 
           return (
             <Link

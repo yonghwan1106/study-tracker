@@ -59,6 +59,23 @@ export interface StudyRecord {
   textbook_section?: TextbookSection;
 }
 
+export type SchoolEventType = 'midterm' | 'final' | 'performance' | 'school' | 'other';
+
+export interface SchoolEvent {
+  id: string;
+  student_id: string;
+  subject_id: string | null;
+  event_type: SchoolEventType;
+  title: string;
+  start_date: string;
+  end_date: string;
+  start_time: string | null;
+  memo: string | null;
+  created_at: string;
+  updated_at: string;
+  subject?: Subject | null;
+}
+
 export interface DailyStats {
   date: string;
   total_pages: number;

@@ -77,6 +77,22 @@ CREATE TABLE IF NOT EXISTS st_study_records (
   CHECK (start_page IS NULL OR end_page >= start_page)
 );
 
+-- School events for exams, performance assessments, and school calendar items.
+CREATE TABLE IF NOT EXISTS st_school_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID NOT NULL REFERENCES st_students(id) ON DELETE CASCADE,
+  subject_id UUID REFERENCES st_subjects(id) ON DELETE SET NULL,
+  event_type TEXT NOT NULL CHECK (event_type IN ('midterm', 'final', 'performance', 'school', 'other')),
+  title TEXT NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  start_time TIME,
+  memo TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CHECK (end_date >= start_date)
+);
+
 -- Migration support for databases created before textbook sections existed.
 ALTER TABLE st_study_records
 ADD COLUMN IF NOT EXISTS textbook_section_id UUID;
@@ -136,3 +152,5 @@ CREATE INDEX IF NOT EXISTS idx_st_textbook_sections_textbook ON st_textbook_sect
 CREATE INDEX IF NOT EXISTS idx_st_study_records_student_date ON st_study_records(student_id, study_date);
 CREATE INDEX IF NOT EXISTS idx_st_study_records_textbook_date ON st_study_records(textbook_id, study_date);
 CREATE INDEX IF NOT EXISTS idx_st_study_records_section_date ON st_study_records(textbook_section_id, study_date);
+CREATE INDEX IF NOT EXISTS idx_st_school_events_student_dates ON st_school_events(student_id, start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_st_school_events_subject_date ON st_school_events(subject_id, start_date);

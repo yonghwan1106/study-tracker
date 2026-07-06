@@ -1,4 +1,4 @@
-import { Student, StudyRecord, Subject, Textbook } from '@/types/database';
+import { SchoolEvent, SchoolEventType, Student, StudyRecord, Subject, Textbook } from '@/types/database';
 import { startOfWeek, endOfWeek, format } from 'date-fns';
 
 interface TextbookPayload {
@@ -27,6 +27,27 @@ interface StudyRecordUpdatePayload {
   start_page?: number | null;
   end_page?: number;
   duration_minutes?: number | null;
+  memo?: string | null;
+}
+
+interface SchoolEventPayload {
+  student_id: string;
+  subject_id?: string | null;
+  event_type: SchoolEventType;
+  title: string;
+  start_date: string;
+  end_date?: string;
+  start_time?: string | null;
+  memo?: string | null;
+}
+
+interface SchoolEventUpdatePayload {
+  subject_id?: string | null;
+  event_type?: SchoolEventType;
+  title?: string;
+  start_date?: string;
+  end_date?: string;
+  start_time?: string | null;
   memo?: string | null;
 }
 
@@ -137,6 +158,49 @@ export async function updateStudyRecord(
 
 export async function deleteStudyRecord(id: string): Promise<void> {
   await request<void>(`/api/records/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getSchoolEvents(
+  studentId: string,
+  startDate?: string,
+  endDate?: string
+): Promise<SchoolEvent[]> {
+  return request<SchoolEvent[]>(
+    buildUrl('/api/events', { studentId, startDate, endDate })
+  );
+}
+
+export async function getUpcomingSchoolEvents(
+  studentId: string,
+  fromDate: string,
+  limit = 5
+): Promise<SchoolEvent[]> {
+  return request<SchoolEvent[]>(
+    buildUrl('/api/events', { studentId, fromDate, limit })
+  );
+}
+
+export async function createSchoolEvent(event: SchoolEventPayload): Promise<SchoolEvent> {
+  return request<SchoolEvent>('/api/events', {
+    method: 'POST',
+    body: JSON.stringify(event),
+  });
+}
+
+export async function updateSchoolEvent(
+  id: string,
+  event: SchoolEventUpdatePayload
+): Promise<SchoolEvent> {
+  return request<SchoolEvent>(`/api/events/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(event),
+  });
+}
+
+export async function deleteSchoolEvent(id: string): Promise<void> {
+  await request<void>(`/api/events/${id}`, {
     method: 'DELETE',
   });
 }

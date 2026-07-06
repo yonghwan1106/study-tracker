@@ -4,8 +4,20 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useStudent } from '@/components/layout/StudentContext';
-import { getPagesDone, getStudyRecordsByDate, getTextbooks, getWeeklyStats } from '@/lib/api';
-import { StudyRecord, Subject, Textbook } from '@/types/database';
+import {
+  getPagesDone,
+  getStudyRecordsByDate,
+  getTextbooks,
+  getUpcomingSchoolEvents,
+  getWeeklyStats,
+} from '@/lib/api';
+import {
+  getDaysUntilLabel,
+  getEventDateLabel,
+  getSchoolEventColor,
+  getSchoolEventType,
+} from '@/lib/events';
+import { SchoolEvent, StudyRecord, Subject, Textbook } from '@/types/database';
 import { formatDate, getToday } from '@/lib/utils';
 
 const studentConfig: Record<string, { emoji: string; avatar?: string; greeting: string; color: string }> = {
@@ -43,6 +55,7 @@ export default function Home() {
   const { selectedStudent, loading: studentLoading } = useStudent();
   const [todayRecords, setTodayRecords] = useState<StudyRecord[]>([]);
   const [textbooks, setTextbooks] = useState<Textbook[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<SchoolEvent[]>([]);
   const [weeklyStats, setWeeklyStats] = useState<{
     totalPages: number;
     recordCount: number;
@@ -60,13 +73,15 @@ export default function Home() {
       setLoading(true);
       try {
         const today = getToday();
-        const [records, textbookData, weekly] = await Promise.all([
+        const [records, textbookData, weekly, schoolEvents] = await Promise.all([
           getStudyRecordsByDate(selectedStudent.id, today),
           getTextbooks(selectedStudent.id),
           getWeeklyStats(selectedStudent.id),
+          getUpcomingSchoolEvents(selectedStudent.id, today, 5),
         ]);
         setTodayRecords(records);
         setTextbooks(textbookData);
+        setUpcomingEvents(schoolEvents);
 
         const subjectBreakdown: { subject: Subject; pages: number }[] = [];
         Object.entries(weekly.subjectStats).forEach(([, stats]) => {
@@ -189,6 +204,65 @@ export default function Home() {
         </div>
         <span className="text-white/80 text-2xl group-hover:translate-x-1 transition-transform">→</span>
       </Link>
+
+      <section className="space-y-3 animate-fade-in-up stagger-2">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <span>📅</span>
+            학사 일정
+          </h2>
+          <Link href="/events" className="text-sm font-bold text-[var(--primary)]">
+            전체 보기 →
+          </Link>
+        </div>
+
+        {loading ? (
+          <div className="glass-card p-5 flex items-center justify-center">
+            <div className="w-7 h-7 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : upcomingEvents.length === 0 ? (
+          <Link href="/events" className="glass-card p-5 flex items-center justify-between group">
+            <div>
+              <p className="font-bold">예정된 일정이 없어요</p>
+              <p className="text-sm text-[var(--muted)]">시험이나 수행평가를 등록해둘 수 있어요</p>
+            </div>
+            <span className="text-2xl group-hover:scale-110 transition-transform">+</span>
+          </Link>
+        ) : (
+          <div className="glass-card p-4 space-y-2">
+            {upcomingEvents.map((event) => {
+              const color = getSchoolEventColor(event);
+              const type = getSchoolEventType(event.event_type);
+              return (
+                <Link
+                  key={event.id}
+                  href="/events"
+                  className="flex items-center gap-3 rounded-2xl p-3 transition-all hover:bg-[var(--background)]"
+                >
+                  <div
+                    className="w-12 h-12 rounded-2xl flex flex-col items-center justify-center flex-shrink-0"
+                    style={{ background: `${color}15`, color }}
+                  >
+                    <span className="text-xs font-bold">{getDaysUntilLabel(event)}</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold truncate">{event.title}</p>
+                    <p className="text-xs text-[var(--muted)] truncate">
+                      {event.subject?.name ? `${event.subject.name} · ` : ''}{type.label} · {getEventDateLabel(event)}
+                    </p>
+                  </div>
+                  <span
+                    className="rounded-full px-2.5 py-1 text-xs font-bold flex-shrink-0"
+                    style={{ background: `${color}18`, color }}
+                  >
+                    {type.shortLabel}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       <section className="space-y-3 animate-fade-in-up stagger-2">
         <h2 className="text-lg font-bold flex items-center gap-2">
@@ -410,7 +484,12 @@ export default function Home() {
         )}
       </section>
 
-      <section className="grid grid-cols-3 gap-3 animate-fade-in-up stagger-5">
+      <section className="grid grid-cols-2 gap-3 animate-fade-in-up stagger-5 sm:grid-cols-4">
+        <Link href="/events" className="glass-card p-5 group">
+          <span className="text-3xl mb-3 block group-hover:scale-110 transition-transform">📅</span>
+          <p className="font-bold">학사 일정</p>
+          <p className="text-sm text-[var(--muted)]">시험·수행</p>
+        </Link>
         <Link href="/schedule" className="glass-card p-5 group">
           <span className="text-3xl mb-3 block group-hover:scale-110 transition-transform">🗓️</span>
           <p className="font-bold">시간표</p>

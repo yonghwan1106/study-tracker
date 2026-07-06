@@ -9,6 +9,7 @@
 - **교재 구성 관리**: 본책/워크북/부록처럼 한 교재 안의 여러 페이지 체계와 총 페이지 등록
 - **일일 진도 기록**: 매일 교재 구성별 시작/완료 페이지, 선택 학습 시간, 메모 기록
 - **자동 진행률 계산**: 구성별 진행률과 교재 전체 진행률 자동 표시
+- **학사 일정 캘린더**: 중간/기말고사, 과목별 수행평가, 학교 일정을 월간 캘린더로 관리
 - **통계 대시보드**: 일간/주간 완료 페이지, 과목별 페이지 차트
 - **캘린더 뷰**: 월별 캘린더에서 날짜별 완료 페이지 확인
 
@@ -65,6 +66,7 @@ http://localhost:3000 에서 확인
 src/
 ├── app/
 │   ├── page.tsx          # 메인 (홈)
+│   ├── events/           # 학사 일정 캘린더
 │   ├── record/           # 교재 진도 입력
 │   ├── history/          # 기록 목록
 │   ├── calendar/         # 캘린더 뷰
@@ -72,6 +74,7 @@ src/
 │   └── goals/            # 교재 현황
 ├── components/
 │   ├── layout/           # Header, BottomNav, StudentContext
+│   ├── events/           # SchoolEventCalendar
 │   ├── record/           # RecordForm, SubjectSelect, etc.
 │   ├── stats/            # WeeklyChart
 │   ├── calendar/         # StudyCalendar
