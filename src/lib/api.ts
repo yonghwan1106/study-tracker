@@ -5,6 +5,7 @@ interface TextbookPayload {
   student_id: string;
   subject_id: string;
   name: string;
+  cover_image_url?: string | null;
   total_pages?: number;
   sections?: { name: string; total_pages: number }[];
 }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Textbook } from '@/types/database';
 import { useStudent } from '@/components/layout/StudentContext';
+import TextbookCover from '@/components/textbooks/TextbookCover';
 import { getTextbooks } from '@/lib/api';
 import { BookOpen, CheckCircle2, Loader2, Plus } from 'lucide-react';
 
@@ -105,11 +106,19 @@ export default function GoalForm() {
                 {group.textbooks.map((textbook) => (
                   <div key={textbook.id} className="bg-card border border-border rounded-xl p-4 space-y-3">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-bold truncate">{textbook.name}</p>
-                        <p className="text-sm text-muted">
-                          {textbook.current_page}/{textbook.total_pages}p
-                        </p>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <TextbookCover
+                          coverImageUrl={textbook.cover_image_url}
+                          title={textbook.name}
+                          subjectColor={group.color}
+                          size="md"
+                        />
+                        <div className="min-w-0">
+                          <p className="font-bold truncate">{textbook.name}</p>
+                          <p className="text-sm text-muted">
+                            {textbook.current_page}/{textbook.total_pages}p
+                          </p>
+                        </div>
                       </div>
                       <span
                         className="text-sm font-bold px-2.5 py-1 rounded-full"

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Subject, StudyRecord, Textbook } from '@/types/database';
 import { useStudent } from '@/components/layout/StudentContext';
+import TextbookCover from '@/components/textbooks/TextbookCover';
 import {
   createStudyRecord,
   createTextbook,
@@ -11,6 +12,7 @@ import {
   getTextbooks,
   updateStudyRecord,
 } from '@/lib/api';
+import { compressTextbookCover } from '@/lib/clientImages';
 import { getToday } from '@/lib/utils';
 import SubjectSelect from './SubjectSelect';
 
@@ -53,6 +55,8 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
   const [textbookId, setTextbookId] = useState(editRecord?.textbook_id || NEW_TEXTBOOK);
   const [textbookSectionId, setTextbookSectionId] = useState(editRecord?.textbook_section_id || '');
   const [newTextbookName, setNewTextbookName] = useState('');
+  const [newCoverImageUrl, setNewCoverImageUrl] = useState('');
+  const [coverProcessing, setCoverProcessing] = useState(false);
   const [newSections, setNewSections] = useState<SectionDraft[]>([
     { name: '본책', totalPages: '' },
   ]);
@@ -135,6 +139,20 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
       ? formatProgress(endPageNumber, activeTotalPages)
       : null;
 
+  const handleCoverChange = async (file: File | null) => {
+    if (!file) return;
+
+    setCoverProcessing(true);
+    setError(null);
+    try {
+      setNewCoverImageUrl(await compressTextbookCover(file));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '표지 이미지를 처리하지 못했습니다.');
+    } finally {
+      setCoverProcessing(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -198,6 +216,7 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
           student_id: selectedStudent.id,
           subject_id: subjectId,
           name: newTextbookName,
+          cover_image_url: newCoverImageUrl || null,
           sections,
         });
         sectionForRecord = textbookForRecord.sections?.[Math.min(newSectionIndex, sections.length - 1)]
@@ -350,6 +369,48 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
               className="w-full"
             />
 
+            <div className="rounded-2xl border border-dashed border-[var(--border)] p-4">
+              <div className="flex items-center gap-4">
+                <TextbookCover
+                  coverImageUrl={newCoverImageUrl}
+                  title={newTextbookName || '새 교재'}
+                  subjectColor={selectedSubject?.color}
+                  size="lg"
+                />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div>
+                    <p className="text-sm font-bold">표지 사진</p>
+                    <p className="text-xs text-[var(--muted)]">
+                      사진은 작게 압축해서 교재와 함께 저장됩니다
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <label className="inline-flex cursor-pointer items-center justify-center rounded-full px-3 py-2 text-xs font-bold text-white"
+                      style={{ background: selectedSubject?.color ?? 'var(--primary)' }}>
+                      {coverProcessing ? '처리 중...' : '사진 선택'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        disabled={coverProcessing}
+                        onChange={(e) => handleCoverChange(e.target.files?.[0] ?? null)}
+                        className="sr-only"
+                      />
+                    </label>
+                    {newCoverImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setNewCoverImageUrl('')}
+                        className="rounded-full border border-[var(--border)] px-3 py-2 text-xs font-bold text-[var(--muted)]"
+                      >
+                        표지 제거
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-bold">교재 구성</span>
@@ -433,6 +494,21 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
           </div>
         ) : selectedTextbook ? (
           <div className="space-y-2">
+            <div className="flex items-center gap-3 rounded-2xl p-3" style={{ background: `${selectedSubject?.color ?? '#8b9aaa'}10` }}>
+              <TextbookCover
+                coverImageUrl={selectedTextbook.cover_image_url}
+                title={selectedTextbook.name}
+                subjectColor={selectedSubject?.color}
+                size="md"
+              />
+              <div className="min-w-0">
+                <p className="font-bold truncate">{selectedTextbook.name}</p>
+                <p className="text-xs text-[var(--muted)]">
+                  {selectedTextbook.current_page}/{selectedTextbook.total_pages}p · {selectedTextbook.progress_percent}%
+                </p>
+              </div>
+            </div>
+
             {selectedTextbook.sections && selectedTextbook.sections.length > 1 && (
               <div className="space-y-2">
                 <span className="text-xs text-[var(--muted)]">기록할 구성</span>
@@ -578,7 +654,7 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
 
       <button
         type="submit"
-        disabled={saving || !selectedStudent}
+        disabled={saving || coverProcessing || !selectedStudent}
         className="w-full py-4 rounded-2xl font-bold text-lg text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
         style={{
           background: selectedSubject
@@ -589,10 +665,10 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
             : '0 8px 30px var(--primary-glow)',
         }}
       >
-        {saving ? (
+        {saving || coverProcessing ? (
           <>
             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            저장 중...
+            {coverProcessing ? '표지 처리 중...' : '저장 중...'}
           </>
         ) : (
           <>

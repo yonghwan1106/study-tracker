@@ -17,6 +17,7 @@ export interface Textbook {
   student_id: string;
   subject_id: string;
   name: string;
+  cover_image_url: string | null;
   total_pages: number;
   current_page: number;
   progress_percent: number;

@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS st_textbooks (
   student_id UUID NOT NULL REFERENCES st_students(id) ON DELETE CASCADE,
   subject_id UUID NOT NULL REFERENCES st_subjects(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
+  cover_image_url TEXT,
   total_pages INT NOT NULL CHECK (total_pages > 0),
   current_page INT NOT NULL DEFAULT 0 CHECK (current_page >= 0),
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -96,6 +97,9 @@ CREATE TABLE IF NOT EXISTS st_school_events (
 -- Migration support for databases created before textbook sections existed.
 ALTER TABLE st_study_records
 ADD COLUMN IF NOT EXISTS textbook_section_id UUID;
+
+ALTER TABLE st_textbooks
+ADD COLUMN IF NOT EXISTS cover_image_url TEXT;
 
 INSERT INTO st_textbook_sections (
   textbook_id,

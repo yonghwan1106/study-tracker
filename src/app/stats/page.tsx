@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useStudent } from '@/components/layout/StudentContext';
+import TextbookCover from '@/components/textbooks/TextbookCover';
 import { getPagesDone, getStudyRecordsByDate, getTextbooks, getWeeklyStats } from '@/lib/api';
 import { StudyRecord, Subject, Textbook } from '@/types/database';
 import { getToday } from '@/lib/utils';
@@ -127,6 +128,14 @@ export default function StatsPage() {
                         className="w-2 h-2 rounded-full flex-shrink-0"
                         style={{ backgroundColor: record.subject?.color }}
                       />
+                      {record.textbook && (
+                        <TextbookCover
+                          coverImageUrl={record.textbook.cover_image_url}
+                          title={record.textbook.name}
+                          subjectColor={record.subject?.color}
+                          size="xs"
+                        />
+                      )}
                       <span className="flex-1 text-sm truncate">
                         {record.textbook?.name}
                         {record.textbook_section && ` · ${record.textbook_section.name}`}

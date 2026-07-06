@@ -6,6 +6,7 @@
 
 - **학생 선택**: 앱 진입 시 학생 선택 (건호/도윤), 로컬스토리지로 마지막 선택 기억
 - **교재 등록**: 학생별/과목별 문제집, 참고서, 선행 교재 등록
+- **교재 표지**: 새 교재 등록 시 표지 사진을 올려 진도 화면에서 함께 확인
 - **교재 구성 관리**: 본책/워크북/부록처럼 한 교재 안의 여러 페이지 체계와 총 페이지 등록
 - **일일 진도 기록**: 매일 교재 구성별 시작/완료 페이지, 선택 학습 시간, 메모 기록
 - **자동 진행률 계산**: 구성별 진행률과 교재 전체 진행률 자동 표시
@@ -75,6 +76,7 @@ src/
 ├── components/
 │   ├── layout/           # Header, BottomNav, StudentContext
 │   ├── events/           # SchoolEventCalendar
+│   ├── textbooks/        # TextbookCover
 │   ├── record/           # RecordForm, SubjectSelect, etc.
 │   ├── stats/            # WeeklyChart
 │   ├── calendar/         # StudyCalendar

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useStudent } from '@/components/layout/StudentContext';
+import TextbookCover from '@/components/textbooks/TextbookCover';
 import { getMonthlyStats, getPagesDone } from '@/lib/api';
 import { StudyRecord } from '@/types/database';
 import { formatDateFull } from '@/lib/utils';
@@ -193,6 +194,14 @@ export default function StudyCalendar() {
                       className="w-3 h-3 rounded-full flex-shrink-0 mt-1"
                       style={{ backgroundColor: record.subject?.color }}
                     />
+                    {record.textbook && (
+                      <TextbookCover
+                        coverImageUrl={record.textbook.cover_image_url}
+                        title={record.textbook.name}
+                        subjectColor={record.subject?.color}
+                        size="sm"
+                      />
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium truncate">{record.subject?.name}</span>

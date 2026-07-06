@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useStudent } from '@/components/layout/StudentContext';
+import TextbookCover from '@/components/textbooks/TextbookCover';
 import {
   getPagesDone,
   getStudyRecordsByDate,
@@ -323,6 +324,14 @@ export default function Home() {
                   >
                     {subjectEmoji(record.subject?.name)}
                   </div>
+                  {record.textbook && (
+                    <TextbookCover
+                      coverImageUrl={record.textbook.cover_image_url}
+                      title={record.textbook.name}
+                      subjectColor={record.subject?.color}
+                      size="xs"
+                    />
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">
                       {record.subject?.name}
@@ -369,11 +378,19 @@ export default function Home() {
             {activeTextbooks.map((textbook) => (
               <div key={textbook.id} className="space-y-2">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-bold truncate">{textbook.name}</p>
-                    <p className="text-xs text-[var(--muted)]">
-                      {textbook.subject?.name} · {textbook.current_page}/{textbook.total_pages}p
-                    </p>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <TextbookCover
+                      coverImageUrl={textbook.cover_image_url}
+                      title={textbook.name}
+                      subjectColor={textbook.subject?.color}
+                      size="sm"
+                    />
+                    <div className="min-w-0">
+                      <p className="font-bold truncate">{textbook.name}</p>
+                      <p className="text-xs text-[var(--muted)]">
+                        {textbook.subject?.name} · {textbook.current_page}/{textbook.total_pages}p
+                      </p>
+                    </div>
                   </div>
                   <span
                     className="text-sm font-bold px-2.5 py-1 rounded-full"

@@ -23,7 +23,7 @@ Study Tracker는 쌍둥이 중학생(박건호, 박도윤)의 교재 진도와 �
 모든 테이블은 `st_` prefix를 사용하여 같은 Postgres 데이터베이스 안의 다른 테이블과 공존합니다:
 - `st_students` - 학생 정보 (건호, 도윤)
 - `st_subjects` - 과목 (국어, 영어, 수학, 과학, 사회) with hex colors
-- `st_textbooks` - 학생별/과목별 교재 마스터 (전체 총 페이지, 현재 페이지, 진행률)
+- `st_textbooks` - 학생별/과목별 교재 마스터 (표지 이미지 URL, 전체 총 페이지, 현재 페이지, 진행률)
 - `st_textbook_sections` - 본책/워크북/부록 등 교재 내부 구성 (구성별 총 페이지, 현재 페이지, 진행률)
 - `st_study_records` - 날짜별 교재 구성 진도 기록 (시작/완료 페이지, 선택 시간, 메모)
 - `st_school_events` - 중간/기말고사, 수행평가, 학교 일정 캘린더
@@ -38,6 +38,7 @@ Study Tracker는 쌍둥이 중학생(박건호, 박도윤)의 교재 진도와 �
 | `src/lib/api.ts` | 클라이언트용 내부 API fetch 래퍼 + 통계 helper |
 | `src/lib/utils.ts` | formatDate, getToday, cn and shared formatting helpers |
 | `src/components/layout/StudentContext.tsx` | 학생 선택 상태 (React Context + localStorage) |
+| `src/components/textbooks/TextbookCover.tsx` | 교재 표지 썸네일 표시 |
 
 ### Data Flow
 
@@ -66,6 +67,9 @@ Study Tracker는 쌍둥이 중학생(박건호, 박도윤)의 교재 진도와 �
 
 ### Progress System
 교재는 `st_textbooks`가 전체 진행률을, `st_textbook_sections`가 본책/워크북 같은 구성별 진행률을 담당합니다. 진도 기록은 반드시 특정 구성(`textbook_section_id`)에 붙고, 기록을 추가/수정/삭제하면 `src/lib/server/studyQueries.ts`에서 구성과 교재 전체의 `current_page`를 다시 계산합니다.
+
+### Textbook Covers
+교재 표지는 새 교재 등록 시 브라우저에서 작은 JPEG data URL로 압축한 뒤 `st_textbooks.cover_image_url`에 저장합니다. 개인용 소규모 앱 기준으로 외부 이미지 스토리지 없이 Vercel/Neon에서 동작하도록 한 선택입니다. 화면에서는 `TextbookCover` 컴포넌트를 사용하고, 표지가 없으면 과목 색상 기반 placeholder를 표시합니다.
 
 ### School Event Calendar
 학사 일정은 `st_school_events`에 저장합니다. `event_type`은 `midterm`, `final`, `performance`, `school`, `other` 중 하나이고, 과목별 일정은 선택적으로 `subject_id`에 연결합니다. 홈에서는 `/api/events?fromDate=...`로 다가오는 일정을 표시하고, `/events`에서 월간 캘린더와 CRUD를 처리합니다.

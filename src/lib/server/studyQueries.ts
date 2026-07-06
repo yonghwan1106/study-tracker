@@ -10,6 +10,7 @@ export interface TextbookInput {
   student_id: string;
   subject_id: string;
   name: string;
+  cover_image_url?: string | null;
   total_pages?: number;
   sections?: TextbookSectionInput[];
 }
@@ -41,6 +42,18 @@ const hasOwn = (value: object, key: string) =>
 function nullableText(value: string | null | undefined) {
   const text = value?.trim();
   return text ? text : null;
+}
+
+function validateCoverImage(value: string | null) {
+  if (!value) return;
+
+  if (!value.startsWith('data:image/')) {
+    badRequest('표지 이미지는 이미지 파일만 사용할 수 있습니다.');
+  }
+
+  if (value.length > 900_000) {
+    badRequest('표지 이미지가 너무 큽니다. 조금 더 작은 사진을 사용해주세요.');
+  }
 }
 
 function badRequest(message: string): never {
@@ -207,6 +220,7 @@ export async function getTextbook(id: string): Promise<Textbook | null> {
       t.student_id::text,
       t.subject_id::text,
       t.name,
+      t.cover_image_url,
       t.total_pages,
       t.current_page,
       ROUND((t.current_page::numeric / NULLIF(t.total_pages, 0)) * 100, 1)::float AS progress_percent,
@@ -239,6 +253,7 @@ export async function getTextbooks(studentId: string, subjectId?: string): Promi
       t.student_id::text,
       t.subject_id::text,
       t.name,
+      t.cover_image_url,
       t.total_pages,
       t.current_page,
       ROUND((t.current_page::numeric / NULLIF(t.total_pages, 0)) * 100, 1)::float AS progress_percent,
@@ -272,6 +287,8 @@ export async function createTextbook(textbook: TextbookInput): Promise<Textbook>
 
   const sections = normalizeSections(textbook);
   validateSections(sections);
+  const coverImageUrl = nullableText(textbook.cover_image_url);
+  validateCoverImage(coverImageUrl);
 
   const totalPages = sections.reduce((sum, section) => sum + section.total_pages, 0);
   const sql = getSql();
@@ -280,17 +297,20 @@ export async function createTextbook(textbook: TextbookInput): Promise<Textbook>
       student_id,
       subject_id,
       name,
+      cover_image_url,
       total_pages
     )
     VALUES (
       ${textbook.student_id},
       ${textbook.subject_id},
       ${name},
+      ${coverImageUrl},
       ${totalPages}
     )
     ON CONFLICT (student_id, subject_id, name)
     DO UPDATE SET
       total_pages = EXCLUDED.total_pages,
+      cover_image_url = COALESCE(EXCLUDED.cover_image_url, st_textbooks.cover_image_url),
       current_page = LEAST(st_textbooks.current_page, EXCLUDED.total_pages),
       updated_at = NOW()
     RETURNING id::text
@@ -406,6 +426,7 @@ export async function getStudyRecords(
         'student_id', t.student_id::text,
         'subject_id', t.subject_id::text,
         'name', t.name,
+        'cover_image_url', t.cover_image_url,
         'total_pages', t.total_pages,
         'current_page', t.current_page,
         'progress_percent', ROUND((t.current_page::numeric / NULLIF(t.total_pages, 0)) * 100, 1)::float,
@@ -478,6 +499,7 @@ export async function getStudyRecord(id: string): Promise<StudyRecord | null> {
         'student_id', t.student_id::text,
         'subject_id', t.subject_id::text,
         'name', t.name,
+        'cover_image_url', t.cover_image_url,
         'total_pages', t.total_pages,
         'current_page', t.current_page,
         'progress_percent', ROUND((t.current_page::numeric / NULLIF(t.total_pages, 0)) * 100, 1)::float,
