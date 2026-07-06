@@ -127,7 +127,10 @@ export default function StatsPage() {
                         className="w-2 h-2 rounded-full flex-shrink-0"
                         style={{ backgroundColor: record.subject?.color }}
                       />
-                      <span className="flex-1 text-sm truncate">{record.textbook?.name}</span>
+                      <span className="flex-1 text-sm truncate">
+                        {record.textbook?.name}
+                        {record.textbook_section && ` · ${record.textbook_section.name}`}
+                      </span>
                       <span className="text-sm text-muted">+{getPagesDone(record)}p</span>
                     </div>
                   ))}

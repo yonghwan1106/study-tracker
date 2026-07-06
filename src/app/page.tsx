@@ -253,7 +253,10 @@ export default function Home() {
                     <p className="font-medium truncate">
                       {record.subject?.name}
                       {record.textbook && (
-                        <span className="text-[var(--muted)] font-normal text-sm"> · {record.textbook.name}</span>
+                        <span className="text-[var(--muted)] font-normal text-sm">
+                          {' '}· {record.textbook.name}
+                          {record.textbook_section && ` · ${record.textbook_section.name}`}
+                        </span>
                       )}
                     </p>
                     <p className="text-sm text-[var(--muted)] truncate">
@@ -317,6 +320,16 @@ export default function Home() {
                     }}
                   />
                 </div>
+                {textbook.sections && textbook.sections.length > 1 && (
+                  <div className="grid gap-1.5 pt-1">
+                    {textbook.sections.map((section) => (
+                      <div key={section.id} className="flex items-center justify-between text-xs text-[var(--muted)]">
+                        <span>{section.name}</span>
+                        <span>{section.current_page}/{section.total_pages}p · {section.progress_percent}%</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             <Link

@@ -23,8 +23,9 @@ Study Tracker는 쌍둥이 중학생(박건호, 박도윤)의 교재 진도와 �
 모든 테이블은 `st_` prefix를 사용하여 같은 Postgres 데이터베이스 안의 다른 테이블과 공존합니다:
 - `st_students` - 학생 정보 (건호, 도윤)
 - `st_subjects` - 과목 (국어, 영어, 수학, 과학, 사회) with hex colors
-- `st_textbooks` - 학생별/과목별 교재 마스터 (총 페이지, 현재 페이지, 진행률)
-- `st_study_records` - 날짜별 교재 진도 기록 (시작/완료 페이지, 선택 시간, 메모)
+- `st_textbooks` - 학생별/과목별 교재 마스터 (전체 총 페이지, 현재 페이지, 진행률)
+- `st_textbook_sections` - 본책/워크북/부록 등 교재 내부 구성 (구성별 총 페이지, 현재 페이지, 진행률)
+- `st_study_records` - 날짜별 교재 구성 진도 기록 (시작/완료 페이지, 선택 시간, 메모)
 
 ### Key Files
 
@@ -61,7 +62,7 @@ Study Tracker는 쌍둥이 중학생(박건호, 박도윤)의 교재 진도와 �
 `src/lib/db.ts`에서 `DATABASE_URL`을 서버에서만 읽어 Neon Postgres에 연결합니다. 클라이언트 컴포넌트는 직접 DB에 접속하지 않고 `src/lib/api.ts`를 통해 내부 API 라우트를 호출합니다.
 
 ### Progress System
-교재는 `st_textbooks.total_pages`와 `st_textbooks.current_page`를 기준으로 진행률을 계산합니다. 진도 기록을 추가/수정/삭제하면 `src/lib/server/studyQueries.ts`에서 해당 교재의 `current_page`를 다시 계산합니다.
+교재는 `st_textbooks`가 전체 진행률을, `st_textbook_sections`가 본책/워크북 같은 구성별 진행률을 담당합니다. 진도 기록은 반드시 특정 구성(`textbook_section_id`)에 붙고, 기록을 추가/수정/삭제하면 `src/lib/server/studyQueries.ts`에서 구성과 교재 전체의 `current_page`를 다시 계산합니다.
 
 ### Subject Colors
 과목별 색상이 DB에 정의되어 있으며, UI 전체에서 일관되게 사용:

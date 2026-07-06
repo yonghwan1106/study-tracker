@@ -24,12 +24,27 @@ export interface Textbook {
   created_at: string;
   updated_at: string;
   subject?: Subject;
+  sections?: TextbookSection[];
+}
+
+export interface TextbookSection {
+  id: string;
+  textbook_id: string;
+  name: string;
+  total_pages: number;
+  current_page: number;
+  progress_percent: number;
+  is_completed: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface StudyRecord {
   id: string;
   student_id: string;
   textbook_id: string;
+  textbook_section_id: string;
   subject_id: string;
   study_date: string;
   start_page: number | null;
@@ -41,6 +56,7 @@ export interface StudyRecord {
   updated_at: string;
   subject?: Subject;
   textbook?: Textbook;
+  textbook_section?: TextbookSection;
 }
 
 export interface DailyStats {

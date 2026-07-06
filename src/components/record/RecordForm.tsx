@@ -21,6 +21,11 @@ interface RecordFormProps {
 
 const NEW_TEXTBOOK = '__new__';
 
+interface SectionDraft {
+  name: string;
+  totalPages: string;
+}
+
 function toNumber(value: string) {
   if (value.trim() === '') return null;
   const num = Number(value);
@@ -46,8 +51,12 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
   const [subjectId, setSubjectId] = useState(editRecord?.subject_id || '');
   const [studyDate, setStudyDate] = useState(editRecord?.study_date || getToday());
   const [textbookId, setTextbookId] = useState(editRecord?.textbook_id || NEW_TEXTBOOK);
+  const [textbookSectionId, setTextbookSectionId] = useState(editRecord?.textbook_section_id || '');
   const [newTextbookName, setNewTextbookName] = useState('');
-  const [totalPages, setTotalPages] = useState('');
+  const [newSections, setNewSections] = useState<SectionDraft[]>([
+    { name: '본책', totalPages: '' },
+  ]);
+  const [newSectionIndex, setNewSectionIndex] = useState(0);
   const [startPage, setStartPage] = useState(
     editRecord?.start_page !== null && editRecord?.start_page !== undefined
       ? String(editRecord.start_page)
@@ -94,22 +103,27 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
   const selectedTextbook = subjectTextbooks.find((textbook) => textbook.id === textbookId) ?? null;
   const selectedSubject = subjects.find((subject) => subject.id === subjectId) ?? null;
   const isNewTextbook = textbookId === NEW_TEXTBOOK;
+  const selectedSection = selectedTextbook?.sections?.find((section) => section.id === textbookSectionId)
+    ?? selectedTextbook?.sections?.[0]
+    ?? null;
+  const newSelectedSection = newSections[newSectionIndex] ?? newSections[0];
 
   useEffect(() => {
     if (editRecord || !subjectId) return;
 
     const firstTextbook = textbooks.find((textbook) => textbook.subject_id === subjectId);
     setTextbookId(firstTextbook?.id ?? NEW_TEXTBOOK);
+    setTextbookSectionId(firstTextbook?.sections?.[0]?.id ?? '');
   }, [editRecord, subjectId, textbooks]);
 
   useEffect(() => {
-    if (editRecord || !selectedTextbook || startPage !== '') return;
+    if (editRecord || !selectedSection || startPage !== '') return;
 
-    const nextStart = Math.min(selectedTextbook.current_page + 1, selectedTextbook.total_pages);
+    const nextStart = Math.min(selectedSection.current_page + 1, selectedSection.total_pages);
     setStartPage(String(nextStart || 1));
-  }, [editRecord, selectedTextbook, startPage]);
+  }, [editRecord, selectedSection, startPage]);
 
-  const activeTotalPages = selectedTextbook?.total_pages ?? toNumber(totalPages) ?? 0;
+  const activeTotalPages = selectedSection?.total_pages ?? toNumber(newSelectedSection?.totalPages ?? '') ?? 0;
   const startPageNumber = toNumber(startPage);
   const endPageNumber = toNumber(endPage);
   const pagesDone =
@@ -158,9 +172,15 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
 
     try {
       let textbookForRecord = selectedTextbook;
+      let sectionForRecord = selectedSection;
 
       if (isNewTextbook) {
-        const pages = toNumber(totalPages);
+        const sections = newSections
+          .map((section) => ({
+            name: section.name.trim(),
+            total_pages: toNumber(section.totalPages) ?? 0,
+          }))
+          .filter((section) => section.name || section.total_pages > 0);
 
         if (!newTextbookName.trim()) {
           setError('새 교재명을 입력해주세요.');
@@ -168,8 +188,8 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
           return;
         }
 
-        if (!pages || pages <= 0) {
-          setError('새 교재의 총 페이지를 입력해주세요.');
+        if (sections.length === 0 || sections.some((section) => !section.name || section.total_pages <= 0)) {
+          setError('각 구성의 이름과 총 페이지를 입력해주세요.');
           setSaving(false);
           return;
         }
@@ -178,8 +198,11 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
           student_id: selectedStudent.id,
           subject_id: subjectId,
           name: newTextbookName,
-          total_pages: pages,
+          sections,
         });
+        sectionForRecord = textbookForRecord.sections?.[Math.min(newSectionIndex, sections.length - 1)]
+          ?? textbookForRecord.sections?.[0]
+          ?? null;
       }
 
       if (!textbookForRecord) {
@@ -188,8 +211,14 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
         return;
       }
 
-      if (end > textbookForRecord.total_pages) {
-        setError(`완료 페이지는 총 ${textbookForRecord.total_pages}페이지를 넘을 수 없습니다.`);
+      if (!sectionForRecord) {
+        setError('기록할 교재 구성을 선택해주세요.');
+        setSaving(false);
+        return;
+      }
+
+      if (end > sectionForRecord.total_pages) {
+        setError(`완료 페이지는 ${sectionForRecord.name}의 총 ${sectionForRecord.total_pages}페이지를 넘을 수 없습니다.`);
         setSaving(false);
         return;
       }
@@ -197,6 +226,7 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
       const recordData = {
         student_id: selectedStudent.id,
         textbook_id: textbookForRecord.id,
+        textbook_section_id: sectionForRecord.id,
         study_date: studyDate,
         start_page: start,
         end_page: end,
@@ -293,7 +323,10 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
         <select
           value={textbookId}
           onChange={(e) => {
-            setTextbookId(e.target.value);
+            const nextTextbookId = e.target.value;
+            const nextTextbook = subjectTextbooks.find((textbook) => textbook.id === nextTextbookId);
+            setTextbookId(nextTextbookId);
+            setTextbookSectionId(nextTextbook?.sections?.[0]?.id ?? '');
             setStartPage('');
             setEndPage('');
           }}
@@ -308,7 +341,7 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
         </select>
 
         {isNewTextbook ? (
-          <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
+          <div className="space-y-4">
             <input
               type="text"
               value={newTextbookName}
@@ -316,19 +349,113 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
               placeholder="교재명 입력"
               className="w-full"
             />
-            <input
-              type="number"
-              min={1}
-              value={totalPages}
-              onChange={(e) => setTotalPages(e.target.value)}
-              placeholder="총 페이지"
-              className="w-full"
-            />
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold">교재 구성</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const hasWorkbook = newSections.some((section) => section.name === '워크북');
+                    setNewSections([
+                      ...newSections,
+                      { name: hasWorkbook ? `구성 ${newSections.length + 1}` : '워크북', totalPages: '' },
+                    ]);
+                    setNewSectionIndex(newSections.length);
+                  }}
+                  className="text-xs px-3 py-1.5 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] font-medium"
+                >
+                  + 구성 추가
+                </button>
+              </div>
+
+              {newSections.map((section, index) => (
+                <div key={index} className="grid gap-2 sm:grid-cols-[1fr_110px_auto]">
+                  <input
+                    type="text"
+                    value={section.name}
+                    onChange={(e) => {
+                      const next = [...newSections];
+                      next[index] = { ...next[index], name: e.target.value };
+                      setNewSections(next);
+                    }}
+                    placeholder="예: 본책"
+                    className="w-full"
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    value={section.totalPages}
+                    onChange={(e) => {
+                      const next = [...newSections];
+                      next[index] = { ...next[index], totalPages: e.target.value };
+                      setNewSections(next);
+                    }}
+                    placeholder="총 페이지"
+                    className="w-full"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = newSections.filter((_, sectionIndex) => sectionIndex !== index);
+                      setNewSections(next.length > 0 ? next : [{ name: '본책', totalPages: '' }]);
+                      setNewSectionIndex(0);
+                    }}
+                    disabled={newSections.length === 1}
+                    className="px-3 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--muted)] disabled:opacity-40"
+                  >
+                    삭제
+                  </button>
+                </div>
+              ))}
+
+              {newSections.length > 1 && (
+                <div className="space-y-2">
+                  <span className="text-xs text-[var(--muted)]">오늘 기록할 구성</span>
+                  <select
+                    value={newSectionIndex}
+                    onChange={(e) => {
+                      setNewSectionIndex(Number(e.target.value));
+                      setStartPage('');
+                      setEndPage('');
+                    }}
+                    className="w-full"
+                  >
+                    {newSections.map((section, index) => (
+                      <option key={index} value={index}>
+                        {section.name || `구성 ${index + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
           </div>
         ) : selectedTextbook ? (
           <div className="space-y-2">
+            {selectedTextbook.sections && selectedTextbook.sections.length > 1 && (
+              <div className="space-y-2">
+                <span className="text-xs text-[var(--muted)]">기록할 구성</span>
+                <select
+                  value={selectedSection?.id ?? ''}
+                  onChange={(e) => {
+                    setTextbookSectionId(e.target.value);
+                    setStartPage('');
+                    setEndPage('');
+                  }}
+                  className="w-full"
+                >
+                  {selectedTextbook.sections.map((section) => (
+                    <option key={section.id} value={section.id}>
+                      {section.name} ({section.current_page}/{section.total_pages}p)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="flex items-center justify-between text-sm">
-              <span className="text-[var(--muted)]">현재 진도</span>
+              <span className="text-[var(--muted)]">전체 진도</span>
               <span className="font-bold">
                 {selectedTextbook.current_page}/{selectedTextbook.total_pages}p · {selectedTextbook.progress_percent}%
               </span>
@@ -342,6 +469,26 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
                 }}
               />
             </div>
+
+            {selectedSection && (
+              <div className="rounded-2xl p-3 space-y-2" style={{ background: `${selectedSubject?.color ?? '#8b9aaa'}10` }}>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-[var(--muted)]">{selectedSection.name}</span>
+                  <span className="font-bold">
+                    {selectedSection.current_page}/{selectedSection.total_pages}p · {selectedSection.progress_percent}%
+                  </span>
+                </div>
+                <div className="progress-bar">
+                  <div
+                    className="progress-bar-fill"
+                    style={{
+                      width: `${selectedSection.progress_percent}%`,
+                      background: selectedSubject?.color,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         ) : null}
       </div>
@@ -381,7 +528,7 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
             <div className="flex items-center justify-between text-sm">
               <span className="font-medium">저장 후 예상 진도</span>
               <span className="font-bold" style={{ color: selectedSubject?.color }}>
-                {endPageNumber}/{activeTotalPages}p · {previewProgress}%
+                {isNewTextbook ? newSelectedSection?.name : selectedSection?.name} {endPageNumber}/{activeTotalPages}p · {previewProgress}%
               </span>
             </div>
             <div className="progress-bar">

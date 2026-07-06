@@ -131,6 +131,28 @@ export default function GoalForm() {
                         }}
                       />
                     </div>
+
+                    {textbook.sections && textbook.sections.length > 0 && (
+                      <div className="space-y-2 pt-1">
+                        {textbook.sections.map((section) => (
+                          <div key={section.id} className="space-y-1">
+                            <div className="flex items-center justify-between text-xs text-muted">
+                              <span>{section.name}</span>
+                              <span>{section.current_page}/{section.total_pages}p · {section.progress_percent}%</span>
+                            </div>
+                            <div className="h-1.5 bg-background rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all"
+                                style={{
+                                  width: `${section.progress_percent}%`,
+                                  backgroundColor: section.is_completed ? '#10B981' : group.color,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

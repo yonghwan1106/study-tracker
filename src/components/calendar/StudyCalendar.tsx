@@ -198,7 +198,10 @@ export default function StudyCalendar() {
                         <span className="font-medium truncate">{record.subject?.name}</span>
                         <span className="text-sm text-muted">+{getPagesDone(record)}p</span>
                       </div>
-                      <p className="text-sm text-muted truncate">{record.textbook?.name}</p>
+                      <p className="text-sm text-muted truncate">
+                        {record.textbook?.name}
+                        {record.textbook_section && ` · ${record.textbook_section.name}`}
+                      </p>
                       <p className="text-sm text-muted">
                         {record.start_page ?? '?'}p → {record.end_page}p
                       </p>

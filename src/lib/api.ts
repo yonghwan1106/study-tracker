@@ -5,12 +5,14 @@ interface TextbookPayload {
   student_id: string;
   subject_id: string;
   name: string;
-  total_pages: number;
+  total_pages?: number;
+  sections?: { name: string; total_pages: number }[];
 }
 
 interface StudyRecordPayload {
   student_id: string;
   textbook_id: string;
+  textbook_section_id?: string;
   study_date: string;
   start_page?: number | null;
   end_page: number;
@@ -20,6 +22,7 @@ interface StudyRecordPayload {
 
 interface StudyRecordUpdatePayload {
   textbook_id?: string;
+  textbook_section_id?: string;
   study_date?: string;
   start_page?: number | null;
   end_page?: number;

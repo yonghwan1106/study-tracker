@@ -155,7 +155,10 @@ export default function HistoryPage() {
                               +{getPagesDone(record)}p
                             </span>
                           </div>
-                          <p className="text-sm text-muted mt-1">{record.textbook?.name}</p>
+                          <p className="text-sm text-muted mt-1">
+                            {record.textbook?.name}
+                            {record.textbook_section && ` · ${record.textbook_section.name}`}
+                          </p>
                           <p className="text-sm text-muted">
                             {record.start_page ?? '?'}p → {record.end_page}p
                             {record.textbook && ` · 전체 ${record.textbook.progress_percent}%`}
