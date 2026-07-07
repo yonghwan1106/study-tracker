@@ -10,6 +10,10 @@ interface TextbookPayload {
   sections?: { name: string; total_pages: number }[];
 }
 
+interface TextbookUpdatePayload {
+  cover_image_url?: string | null;
+}
+
 interface StudyRecordPayload {
   student_id: string;
   textbook_id: string;
@@ -115,6 +119,16 @@ export async function getTextbooks(
 export async function createTextbook(textbook: TextbookPayload): Promise<Textbook> {
   return request<Textbook>('/api/textbooks', {
     method: 'POST',
+    body: JSON.stringify(textbook),
+  });
+}
+
+export async function updateTextbook(
+  id: string,
+  textbook: TextbookUpdatePayload
+): Promise<Textbook> {
+  return request<Textbook>(`/api/textbooks/${id}`, {
+    method: 'PATCH',
     body: JSON.stringify(textbook),
   });
 }

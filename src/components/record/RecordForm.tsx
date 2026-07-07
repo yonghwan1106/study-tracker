@@ -10,6 +10,7 @@ import {
   createTextbook,
   getSubjects,
   getTextbooks,
+  updateTextbook,
   updateStudyRecord,
 } from '@/lib/api';
 import { compressTextbookCover } from '@/lib/clientImages';
@@ -139,7 +140,15 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
       ? formatProgress(endPageNumber, activeTotalPages)
       : null;
 
-  const handleCoverChange = async (file: File | null) => {
+  const updateTextbookInState = (updatedTextbook: Textbook) => {
+    setTextbooks((current) =>
+      current.map((textbook) =>
+        textbook.id === updatedTextbook.id ? updatedTextbook : textbook
+      )
+    );
+  };
+
+  const handleNewCoverChange = async (file: File | null) => {
     if (!file) return;
 
     setCoverProcessing(true);
@@ -148,6 +157,41 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
       setNewCoverImageUrl(await compressTextbookCover(file));
     } catch (err) {
       setError(err instanceof Error ? err.message : '표지 이미지를 처리하지 못했습니다.');
+    } finally {
+      setCoverProcessing(false);
+    }
+  };
+
+  const handleExistingCoverChange = async (file: File | null) => {
+    if (!file || !selectedTextbook) return;
+
+    setCoverProcessing(true);
+    setError(null);
+    try {
+      const coverImageUrl = await compressTextbookCover(file);
+      const updatedTextbook = await updateTextbook(selectedTextbook.id, {
+        cover_image_url: coverImageUrl,
+      });
+      updateTextbookInState(updatedTextbook);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '표지 이미지를 저장하지 못했습니다.');
+    } finally {
+      setCoverProcessing(false);
+    }
+  };
+
+  const handleExistingCoverRemove = async () => {
+    if (!selectedTextbook) return;
+
+    setCoverProcessing(true);
+    setError(null);
+    try {
+      const updatedTextbook = await updateTextbook(selectedTextbook.id, {
+        cover_image_url: null,
+      });
+      updateTextbookInState(updatedTextbook);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '표지 이미지를 제거하지 못했습니다.');
     } finally {
       setCoverProcessing(false);
     }
@@ -393,7 +437,10 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
                         accept="image/*"
                         capture="environment"
                         disabled={coverProcessing}
-                        onChange={(e) => handleCoverChange(e.target.files?.[0] ?? null)}
+                        onChange={(e) => {
+                          handleNewCoverChange(e.target.files?.[0] ?? null);
+                          e.currentTarget.value = '';
+                        }}
                         className="sr-only"
                       />
                     </label>
@@ -506,6 +553,46 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
                 <p className="text-xs text-[var(--muted)]">
                   {selectedTextbook.current_page}/{selectedTextbook.total_pages}p · {selectedTextbook.progress_percent}%
                 </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-dashed border-[var(--border)] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold">교재 표지</p>
+                  <p className="text-xs text-[var(--muted)]">
+                    기존 교재도 표지를 추가하거나 바꿀 수 있어요
+                  </p>
+                </div>
+                <div className="flex flex-shrink-0 flex-wrap justify-end gap-2">
+                  <label
+                    className="inline-flex cursor-pointer items-center justify-center rounded-full px-3 py-2 text-xs font-bold text-white"
+                    style={{ background: selectedSubject?.color ?? 'var(--primary)' }}
+                  >
+                    {coverProcessing ? '처리 중...' : selectedTextbook.cover_image_url ? '사진 교체' : '사진 추가'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      disabled={coverProcessing}
+                      onChange={(e) => {
+                        handleExistingCoverChange(e.target.files?.[0] ?? null);
+                        e.currentTarget.value = '';
+                      }}
+                      className="sr-only"
+                    />
+                  </label>
+                  {selectedTextbook.cover_image_url && (
+                    <button
+                      type="button"
+                      onClick={handleExistingCoverRemove}
+                      disabled={coverProcessing}
+                      className="rounded-full border border-[var(--border)] px-3 py-2 text-xs font-bold text-[var(--muted)] disabled:opacity-50"
+                    >
+                      표지 제거
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 

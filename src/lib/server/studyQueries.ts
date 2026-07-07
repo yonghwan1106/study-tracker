@@ -15,6 +15,10 @@ export interface TextbookInput {
   sections?: TextbookSectionInput[];
 }
 
+export interface TextbookUpdateInput {
+  cover_image_url?: string | null;
+}
+
 export interface StudyRecordInput {
   student_id: string;
   textbook_id: string;
@@ -347,6 +351,36 @@ export async function createTextbook(textbook: TextbookInput): Promise<Textbook>
   if (!created) throw new Error('NOT_FOUND');
 
   return created;
+}
+
+export async function updateTextbook(
+  id: string,
+  textbook: TextbookUpdateInput
+): Promise<Textbook> {
+  const current = await getTextbook(id);
+
+  if (!current) {
+    throw new Error('NOT_FOUND');
+  }
+
+  const coverImageUrl = hasOwn(textbook, 'cover_image_url')
+    ? nullableText(textbook.cover_image_url)
+    : current.cover_image_url;
+  validateCoverImage(coverImageUrl);
+
+  const sql = getSql();
+  await sql`
+    UPDATE st_textbooks
+    SET
+      cover_image_url = ${coverImageUrl},
+      updated_at = NOW()
+    WHERE id = ${id}
+  `;
+
+  const updated = await getTextbook(id);
+  if (!updated) throw new Error('NOT_FOUND');
+
+  return updated;
 }
 
 async function recalculateSectionProgress(sectionId: string): Promise<string | null> {
