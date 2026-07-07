@@ -376,7 +376,12 @@ export default function Home() {
         ) : activeTextbooks.length > 0 ? (
           <div className="glass-card p-5 space-y-4">
             {activeTextbooks.map((textbook) => (
-              <div key={textbook.id} className="space-y-2">
+              <Link
+                key={textbook.id}
+                href={`/record?textbookId=${encodeURIComponent(textbook.id)}`}
+                className="-mx-2 block space-y-2 rounded-2xl p-2 transition-all hover:bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                aria-label={`${textbook.name} 진도 수정하기`}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
                     <TextbookCover
@@ -393,7 +398,7 @@ export default function Home() {
                     </div>
                   </div>
                   <span
-                    className="text-sm font-bold px-2.5 py-1 rounded-full"
+                    className="text-sm font-bold px-2.5 py-1 rounded-full flex-shrink-0"
                     style={{
                       background: `${textbook.subject?.color}15`,
                       color: textbook.subject?.color,
@@ -421,7 +426,7 @@ export default function Home() {
                     ))}
                   </div>
                 )}
-              </div>
+              </Link>
             ))}
             <Link
               href="/goals"

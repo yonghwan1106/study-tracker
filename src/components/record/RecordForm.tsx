@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Subject, StudyRecord, Textbook } from '@/types/database';
 import { useStudent } from '@/components/layout/StudentContext';
 import TextbookCover from '@/components/textbooks/TextbookCover';
@@ -42,7 +42,9 @@ function formatProgress(page: number, total: number) {
 
 export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { selectedStudent } = useStudent();
+  const requestedTextbookId = !editRecord ? searchParams.get('textbookId') : null;
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [textbooks, setTextbooks] = useState<Textbook[]>([]);
@@ -86,8 +88,18 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
         setSubjects(subjectsData);
         setTextbooks(textbooksData);
 
-        if (!editRecord && subjectsData.length > 0) {
-          setSubjectId(subjectsData[0].id);
+        if (!editRecord) {
+          const requestedTextbook = requestedTextbookId
+            ? textbooksData.find((textbook) => textbook.id === requestedTextbookId)
+            : null;
+
+          if (requestedTextbook) {
+            setSubjectId(requestedTextbook.subject_id);
+            setTextbookId(requestedTextbook.id);
+            setTextbookSectionId(requestedTextbook.sections?.[0]?.id ?? '');
+          } else if (subjectsData.length > 0) {
+            setSubjectId(subjectsData[0].id);
+          }
         }
       } catch (err) {
         console.error('Error loading form data:', err);
@@ -98,7 +110,7 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
     }
 
     loadData();
-  }, [editRecord, selectedStudent]);
+  }, [editRecord, requestedTextbookId, selectedStudent]);
 
   const subjectTextbooks = useMemo(
     () => textbooks.filter((textbook) => textbook.subject_id === subjectId),
@@ -115,11 +127,22 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
 
   useEffect(() => {
     if (editRecord || !subjectId) return;
+    const requestedTextbook = requestedTextbookId
+      ? textbooks.find((textbook) => textbook.id === requestedTextbookId)
+      : null;
+
+    if (
+      requestedTextbook &&
+      subjectId === requestedTextbook.subject_id &&
+      textbookId === requestedTextbook.id
+    ) {
+      return;
+    }
 
     const firstTextbook = textbooks.find((textbook) => textbook.subject_id === subjectId);
     setTextbookId(firstTextbook?.id ?? NEW_TEXTBOOK);
     setTextbookSectionId(firstTextbook?.sections?.[0]?.id ?? '');
-  }, [editRecord, subjectId, textbooks]);
+  }, [editRecord, requestedTextbookId, subjectId, textbookId, textbooks]);
 
   useEffect(() => {
     if (editRecord || !selectedSection || startPage !== '') return;
