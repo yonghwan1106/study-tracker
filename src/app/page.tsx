@@ -135,7 +135,6 @@ export default function Home() {
   const hasRecordsToday = todayRecords.length > 0;
   const todayPages = todayRecords.reduce((sum, record) => sum + getPagesDone(record), 0);
   const activeTextbooks = textbooks
-    .filter((textbook) => !textbook.is_completed)
     .sort((a, b) => {
       const subjectDiff =
         (homeSubjectOrder[a.subject?.name ?? ''] ?? 99) -
