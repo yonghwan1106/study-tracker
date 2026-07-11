@@ -1,19 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createTextbook, getTextbooks, TextbookInput } from '@/lib/server/studyQueries';
 import { badRequest, handleRouteError } from '@/lib/server/http';
+import type { Subject } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
+
+type SubjectCategory = Subject['category'];
+
+const allowedSubjectCategories = new Set<SubjectCategory>([
+  'korean',
+  'english',
+  'math',
+  'science',
+  'social',
+]);
 
 export async function GET(request: NextRequest) {
   try {
     const studentId = request.nextUrl.searchParams.get('studentId') ?? undefined;
     const subjectId = request.nextUrl.searchParams.get('subjectId') ?? undefined;
+    const subjectCategoriesParam = request.nextUrl.searchParams.get('subjectCategories');
+    const subjectCategories = subjectCategoriesParam
+      ?.split(',')
+      .map((category) => category.trim())
+      .filter(Boolean);
 
     if (!studentId) {
       return badRequest('studentId가 필요합니다.');
     }
 
-    return NextResponse.json(await getTextbooks(studentId, subjectId));
+    if (
+      subjectCategories?.some(
+        (category) => !allowedSubjectCategories.has(category as SubjectCategory)
+      )
+    ) {
+      return badRequest('지원하지 않는 과목 분류입니다.');
+    }
+
+    return NextResponse.json(
+      await getTextbooks(
+        studentId,
+        subjectId,
+        subjectCategories as SubjectCategory[] | undefined
+      )
+    );
   } catch (error) {
     return handleRouteError(error);
   }

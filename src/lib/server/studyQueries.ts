@@ -1,6 +1,8 @@
 import { getSql } from '@/lib/db';
 import { Student, StudyRecord, Subject, Textbook, TextbookSection } from '@/types/database';
 
+type SubjectCategory = Subject['category'];
+
 export interface TextbookSectionInput {
   name: string;
   total_pages: number;
@@ -249,8 +251,13 @@ export async function getTextbook(id: string): Promise<Textbook | null> {
   return textbooks[0] ? normalizeTextbook(textbooks[0]) : null;
 }
 
-export async function getTextbooks(studentId: string, subjectId?: string): Promise<Textbook[]> {
+export async function getTextbooks(
+  studentId: string,
+  subjectId?: string,
+  subjectCategories?: SubjectCategory[]
+): Promise<Textbook[]> {
   const sql = getSql();
+  const categoryFilter = subjectCategories?.length ? subjectCategories.join(',') : null;
   const rows = await sql.query(`
     SELECT
       t.id::text,
@@ -276,8 +283,9 @@ export async function getTextbooks(studentId: string, subjectId?: string): Promi
     JOIN st_subjects s ON s.id = t.subject_id
     WHERE t.student_id = $1
       AND ($2::uuid IS NULL OR t.subject_id = $2::uuid)
+      AND ($3::text IS NULL OR s.category = ANY(string_to_array($3::text, ',')))
     ORDER BY s.sort_order, (t.current_page >= t.total_pages), t.name
-  `, [studentId, subjectId ?? null]);
+  `, [studentId, subjectId ?? null, categoryFilter]);
 
   return (rows as unknown as Textbook[]).map(normalizeTextbook);
 }

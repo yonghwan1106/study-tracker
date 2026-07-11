@@ -1,6 +1,12 @@
 import { SchoolEvent, SchoolEventType, Student, StudyRecord, Subject, Textbook } from '@/types/database';
 import { startOfWeek, endOfWeek, format } from 'date-fns';
 
+type SubjectCategory = Subject['category'];
+
+interface WeeklyStatsOptions {
+  includeTextbooks?: boolean;
+}
+
 interface TextbookPayload {
   student_id: string;
   subject_id: string;
@@ -111,9 +117,16 @@ export async function getSubjects(): Promise<Subject[]> {
 
 export async function getTextbooks(
   studentId: string,
-  subjectId?: string
+  subjectId?: string,
+  subjectCategories?: SubjectCategory[]
 ): Promise<Textbook[]> {
-  return request<Textbook[]>(buildUrl('/api/textbooks', { studentId, subjectId }));
+  return request<Textbook[]>(
+    buildUrl('/api/textbooks', {
+      studentId,
+      subjectId,
+      subjectCategories: subjectCategories?.join(','),
+    })
+  );
 }
 
 export async function createTextbook(textbook: TextbookPayload): Promise<Textbook> {
@@ -232,17 +245,25 @@ export function getPagesDone(record: StudyRecord): number {
   return 0;
 }
 
-export async function getWeeklyStats(studentId: string, date: Date = new Date()) {
+export async function getWeeklyStats(
+  studentId: string,
+  date: Date = new Date(),
+  options: WeeklyStatsOptions = {}
+) {
   const weekStart = startOfWeek(date, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(date, { weekStartsOn: 1 });
 
-  const records = await getStudyRecords(
+  const recordsPromise = getStudyRecords(
     studentId,
     format(weekStart, 'yyyy-MM-dd'),
     format(weekEnd, 'yyyy-MM-dd')
   );
+  const textbooksPromise = options.includeTextbooks === false
+    ? Promise.resolve<Textbook[]>([])
+    : getTextbooks(studentId);
 
-  const textbooks = await getTextbooks(studentId);
+  const [records, textbooks] = await Promise.all([recordsPromise, textbooksPromise]);
+
   const subjectStats: Record<string, { total_pages: number; records: StudyRecord[] }> = {};
 
   records.forEach((record) => {
