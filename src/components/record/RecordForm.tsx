@@ -98,7 +98,12 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
             setTextbookId(requestedTextbook.id);
             setTextbookSectionId(requestedTextbook.sections?.[0]?.id ?? '');
           } else if (subjectsData.length > 0) {
-            setSubjectId(subjectsData[0].id);
+            const defaultSubjectId = subjectsData[0].id;
+            const firstTextbook = textbooksData.find((textbook) => textbook.subject_id === defaultSubjectId);
+
+            setSubjectId(defaultSubjectId);
+            setTextbookId(firstTextbook?.id ?? NEW_TEXTBOOK);
+            setTextbookSectionId(firstTextbook?.sections?.[0]?.id ?? '');
           }
         }
       } catch (err) {
@@ -124,25 +129,6 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
     ?? selectedTextbook?.sections?.[0]
     ?? null;
   const newSelectedSection = newSections[newSectionIndex] ?? newSections[0];
-
-  useEffect(() => {
-    if (editRecord || !subjectId) return;
-    const requestedTextbook = requestedTextbookId
-      ? textbooks.find((textbook) => textbook.id === requestedTextbookId)
-      : null;
-
-    if (
-      requestedTextbook &&
-      subjectId === requestedTextbook.subject_id &&
-      textbookId === requestedTextbook.id
-    ) {
-      return;
-    }
-
-    const firstTextbook = textbooks.find((textbook) => textbook.subject_id === subjectId);
-    setTextbookId(firstTextbook?.id ?? NEW_TEXTBOOK);
-    setTextbookSectionId(firstTextbook?.sections?.[0]?.id ?? '');
-  }, [editRecord, requestedTextbookId, subjectId, textbookId, textbooks]);
 
   useEffect(() => {
     if (editRecord || !selectedSection || startPage !== '') return;
@@ -393,7 +379,11 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
           subjects={subjects}
           value={subjectId}
           onChange={(value) => {
+            const firstTextbook = textbooks.find((textbook) => textbook.subject_id === value);
+
             setSubjectId(value);
+            setTextbookId(firstTextbook?.id ?? NEW_TEXTBOOK);
+            setTextbookSectionId(firstTextbook?.sections?.[0]?.id ?? '');
             setStartPage('');
             setEndPage('');
           }}
