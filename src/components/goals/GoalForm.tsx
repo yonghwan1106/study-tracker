@@ -104,7 +104,12 @@ export default function GoalForm() {
 
               <div className="space-y-3">
                 {group.textbooks.map((textbook) => (
-                  <div key={textbook.id} className="bg-card border border-border rounded-xl p-4 space-y-3">
+                  <Link
+                    key={textbook.id}
+                    href={`/record?textbookId=${encodeURIComponent(textbook.id)}`}
+                    className="block bg-card border border-border rounded-xl p-4 space-y-3 transition-all hover:bg-[var(--card-hover)] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                    aria-label={`${textbook.name} 진도 기록하기`}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-center gap-3">
                         <TextbookCover
@@ -162,7 +167,7 @@ export default function GoalForm() {
                         ))}
                       </div>
                     )}
-                  </div>
+                  </Link>
                 ))}
               </div>
             </section>
