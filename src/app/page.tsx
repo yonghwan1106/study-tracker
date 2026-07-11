@@ -52,6 +52,14 @@ function subjectEmoji(name?: string) {
   return '📚';
 }
 
+const homeSubjectOrder: Record<string, number> = {
+  수학: 1,
+  영어: 2,
+  국어: 3,
+  과학: 4,
+  사회: 5,
+};
+
 export default function Home() {
   const { selectedStudent, loading: studentLoading } = useStudent();
   const [todayRecords, setTodayRecords] = useState<StudyRecord[]>([]);
@@ -138,8 +146,15 @@ export default function Home() {
   const todayPages = todayRecords.reduce((sum, record) => sum + getPagesDone(record), 0);
   const activeTextbooks = textbooks
     .filter((textbook) => !textbook.is_completed)
-    .sort((a, b) => b.progress_percent - a.progress_percent)
-    .slice(0, 4);
+    .sort((a, b) => {
+      const subjectDiff =
+        (homeSubjectOrder[a.subject?.name ?? ''] ?? 99) -
+        (homeSubjectOrder[b.subject?.name ?? ''] ?? 99);
+
+      if (subjectDiff !== 0) return subjectDiff;
+
+      return a.name.localeCompare(b.name, 'ko');
+    });
 
   return (
     <div className="space-y-6">
