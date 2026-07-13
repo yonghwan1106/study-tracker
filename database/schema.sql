@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS st_textbooks (
   subject_id UUID NOT NULL REFERENCES st_subjects(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   cover_image_url TEXT,
+  curriculum_type TEXT NOT NULL DEFAULT 'semester' CHECK (curriculum_type IN ('semester', 'year')),
   total_pages INT NOT NULL CHECK (total_pages > 0),
   current_page INT NOT NULL DEFAULT 0 CHECK (current_page >= 0),
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -53,6 +54,10 @@ CREATE TABLE IF NOT EXISTS st_textbook_sections (
   textbook_id UUID NOT NULL REFERENCES st_textbooks(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   total_pages INT NOT NULL CHECK (total_pages > 0),
+  first_semester_target_page INT CHECK (
+    first_semester_target_page IS NULL
+    OR (first_semester_target_page >= 0 AND first_semester_target_page <= total_pages)
+  ),
   current_page INT NOT NULL DEFAULT 0 CHECK (current_page >= 0),
   sort_order INT DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -94,12 +99,55 @@ CREATE TABLE IF NOT EXISTS st_school_events (
   CHECK (end_date >= start_date)
 );
 
+-- One shared setting keeps both students on the same school semester.
+CREATE TABLE IF NOT EXISTS st_academic_settings (
+  id BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id = TRUE),
+  current_semester SMALLINT NOT NULL DEFAULT 1 CHECK (current_semester IN (1, 2)),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO st_academic_settings (id, current_semester)
+VALUES (TRUE, 1)
+ON CONFLICT (id) DO NOTHING;
+
 -- Migration support for databases created before textbook sections existed.
 ALTER TABLE st_study_records
 ADD COLUMN IF NOT EXISTS textbook_section_id UUID;
 
 ALTER TABLE st_textbooks
 ADD COLUMN IF NOT EXISTS cover_image_url TEXT;
+
+ALTER TABLE st_textbooks
+ADD COLUMN IF NOT EXISTS curriculum_type TEXT;
+
+UPDATE st_textbooks
+SET curriculum_type = CASE
+  WHEN name LIKE '%1학년%' THEN 'year'
+  ELSE 'semester'
+END
+WHERE curriculum_type IS NULL;
+
+ALTER TABLE st_textbooks
+ALTER COLUMN curriculum_type SET DEFAULT 'semester';
+
+ALTER TABLE st_textbooks
+ALTER COLUMN curriculum_type SET NOT NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'st_textbooks_curriculum_type_check'
+  ) THEN
+    ALTER TABLE st_textbooks
+    ADD CONSTRAINT st_textbooks_curriculum_type_check
+    CHECK (curriculum_type IN ('semester', 'year'));
+  END IF;
+END $$;
+
+ALTER TABLE st_textbook_sections
+ADD COLUMN IF NOT EXISTS first_semester_target_page INT;
 
 INSERT INTO st_textbook_sections (
   textbook_id,
@@ -120,6 +168,29 @@ WHERE NOT EXISTS (
   FROM st_textbook_sections sec
   WHERE sec.textbook_id = t.id
 );
+
+UPDATE st_textbook_sections sec
+SET first_semester_target_page = CEIL(sec.total_pages / 2.0)::int
+FROM st_textbooks t
+WHERE sec.textbook_id = t.id
+  AND t.curriculum_type = 'year'
+  AND sec.first_semester_target_page IS NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'st_textbook_sections_first_semester_target_page_check'
+  ) THEN
+    ALTER TABLE st_textbook_sections
+    ADD CONSTRAINT st_textbook_sections_first_semester_target_page_check
+    CHECK (
+      first_semester_target_page IS NULL
+      OR (first_semester_target_page >= 0 AND first_semester_target_page <= total_pages)
+    );
+  END IF;
+END $$;
 
 UPDATE st_study_records r
 SET textbook_section_id = sec.id

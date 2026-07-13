@@ -5,13 +5,19 @@ import Link from 'next/link';
 import { Textbook } from '@/types/database';
 import { useStudent } from '@/components/layout/StudentContext';
 import TextbookCover from '@/components/textbooks/TextbookCover';
-import { getTextbooks } from '@/lib/api';
+import {
+  getAcademicSettings,
+  getTextbooks,
+  updateAcademicSettings,
+} from '@/lib/api';
 import { BookOpen, CheckCircle2, Loader2, Plus } from 'lucide-react';
 
 export default function GoalForm() {
   const { selectedStudent } = useStudent();
   const [textbooks, setTextbooks] = useState<Textbook[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentSemester, setCurrentSemester] = useState<1 | 2>(1);
+  const [semesterSaving, setSemesterSaving] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -19,7 +25,12 @@ export default function GoalForm() {
 
       setLoading(true);
       try {
-        setTextbooks(await getTextbooks(selectedStudent.id));
+        const [textbookData, settings] = await Promise.all([
+          getTextbooks(selectedStudent.id),
+          getAcademicSettings(),
+        ]);
+        setTextbooks(textbookData);
+        setCurrentSemester(settings.current_semester);
       } catch (error) {
         console.error('Error loading textbooks:', error);
       } finally {
@@ -61,8 +72,45 @@ export default function GoalForm() {
     ? Math.round(textbooks.reduce((sum, textbook) => sum + textbook.progress_percent, 0) / textbooks.length)
     : 0;
 
+  const handleSemesterChange = async (semester: 1 | 2) => {
+    if (!selectedStudent || semester === currentSemester || semesterSaving) return;
+
+    setSemesterSaving(true);
+    try {
+      await updateAcademicSettings(semester);
+      setCurrentSemester(semester);
+      setTextbooks(await getTextbooks(selectedStudent.id));
+    } catch (error) {
+      console.error('Error updating academic semester:', error);
+    } finally {
+      setSemesterSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-bold">수업 기준</p>
+        <div className="inline-flex rounded-lg border border-border p-1" role="group" aria-label="현재 수업 학기">
+          {([1, 2] as const).map((semester) => (
+            <button
+              key={semester}
+              type="button"
+              onClick={() => handleSemesterChange(semester)}
+              disabled={semesterSaving}
+              aria-pressed={currentSemester === semester}
+              className={`min-w-14 rounded-md px-3 py-1.5 text-sm font-bold transition-colors ${
+                currentSemester === semester
+                  ? 'bg-primary text-white'
+                  : 'text-muted hover:bg-background'
+              } disabled:opacity-50`}
+            >
+              {semester}학기
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-3 gap-3">
         <div className="text-center p-4 bg-card border border-border rounded-xl">
           <BookOpen className="w-5 h-5 text-primary mx-auto mb-2" />
@@ -145,6 +193,28 @@ export default function GoalForm() {
                         }}
                       />
                     </div>
+
+                    {textbook.curriculum_type === 'year' && textbook.school_progress && (
+                      <div className="space-y-1.5 pt-1">
+                        <div className="flex items-center justify-between text-xs text-muted">
+                          <span>{textbook.school_progress.current_semester}학기 수업 진도</span>
+                          <span>
+                            {textbook.school_progress.current_pages}/
+                            {textbook.school_progress.target_pages}p ·
+                            {textbook.school_progress.progress_percent}%
+                          </span>
+                        </div>
+                        <div className="h-1.5 bg-background rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{
+                              width: `${textbook.school_progress.progress_percent}%`,
+                              backgroundColor: group.color,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     {textbook.sections && textbook.sections.length > 0 && (
                       <div className="space-y-2 pt-1">

@@ -340,6 +340,14 @@ export default function Home() {
                       <p className="text-xs text-[var(--muted)]">
                         {textbook.subject?.name} · {textbook.current_page}/{textbook.total_pages}p
                       </p>
+                      {textbook.curriculum_type === 'year' && textbook.school_progress && (
+                        <p className="text-xs font-medium" style={{ color: textbook.subject?.color }}>
+                          {textbook.school_progress.current_semester}학기 수업 ·
+                          {textbook.school_progress.current_pages}/
+                          {textbook.school_progress.target_pages}p ·
+                          {textbook.school_progress.progress_percent}%
+                        </p>
+                      )}
                     </div>
                   </div>
                   <span

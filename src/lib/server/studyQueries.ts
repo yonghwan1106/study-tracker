@@ -1,11 +1,21 @@
 import { getSql } from '@/lib/db';
-import { Student, StudyRecord, Subject, Textbook, TextbookSection } from '@/types/database';
+import { getSchoolProgress } from '@/lib/textbookProgress';
+import { getAcademicSettings } from '@/lib/server/academicSettings';
+import {
+  CurriculumType,
+  Student,
+  StudyRecord,
+  Subject,
+  Textbook,
+  TextbookSection,
+} from '@/types/database';
 
 type SubjectCategory = Subject['category'];
 
 export interface TextbookSectionInput {
   name: string;
   total_pages: number;
+  first_semester_target_page?: number | null;
 }
 
 export interface TextbookInput {
@@ -13,12 +23,15 @@ export interface TextbookInput {
   subject_id: string;
   name: string;
   cover_image_url?: string | null;
+  curriculum_type?: CurriculumType;
   total_pages?: number;
   sections?: TextbookSectionInput[];
 }
 
 export interface TextbookUpdateInput {
   cover_image_url?: string | null;
+  curriculum_type?: CurriculumType;
+  section_targets?: { id: string; first_semester_target_page?: number | null }[];
 }
 
 export interface StudyRecordInput {
@@ -71,6 +84,12 @@ function progressPercent(currentPage: number, totalPages: number) {
   return Math.min(100, Math.round((currentPage / totalPages) * 1000) / 10);
 }
 
+function normalizeCurriculumType(value: CurriculumType | undefined): CurriculumType {
+  if (!value) return 'semester';
+  if (value === 'semester' || value === 'year') return value;
+  badRequest('교재 기간은 한 학기용 또는 1년용으로 선택해주세요.');
+}
+
 function normalizeSection(row: TextbookSection): TextbookSection {
   return {
     ...row,
@@ -79,33 +98,51 @@ function normalizeSection(row: TextbookSection): TextbookSection {
   };
 }
 
-function normalizeTextbook(row: Textbook): Textbook {
-  return {
+function normalizeTextbook(row: Textbook, currentSemester: 1 | 2 = 1): Textbook {
+  const normalized = {
     ...row,
     progress_percent: progressPercent(row.current_page, row.total_pages),
     is_completed: row.current_page >= row.total_pages,
     sections: row.sections?.map(normalizeSection) ?? [],
   };
+
+  return {
+    ...normalized,
+    curriculum_type: row.curriculum_type ?? 'semester',
+    school_progress: getSchoolProgress(normalized, currentSemester),
+  };
 }
 
-function normalizeSections(input: TextbookInput): TextbookSectionInput[] {
+function normalizeSections(
+  input: TextbookInput,
+  curriculumType: CurriculumType
+): TextbookSectionInput[] {
   const provided = input.sections?.filter((section) => nullableText(section.name));
 
   if (provided && provided.length > 0) {
     return provided.map((section) => ({
       name: nullableText(section.name) ?? '본책',
       total_pages: section.total_pages,
+      first_semester_target_page: curriculumType === 'year'
+        ? section.first_semester_target_page ?? Math.ceil(section.total_pages / 2)
+        : null,
     }));
   }
 
   if (input.total_pages && input.total_pages > 0) {
-    return [{ name: '본책', total_pages: input.total_pages }];
+    return [{
+      name: '본책',
+      total_pages: input.total_pages,
+      first_semester_target_page: curriculumType === 'year'
+        ? Math.ceil(input.total_pages / 2)
+        : null,
+    }];
   }
 
   badRequest('교재 구성을 1개 이상 입력해주세요.');
 }
 
-function validateSections(sections: TextbookSectionInput[]) {
+function validateSections(sections: TextbookSectionInput[], curriculumType: CurriculumType) {
   const names = new Set<string>();
 
   sections.forEach((section) => {
@@ -121,6 +158,19 @@ function validateSections(sections: TextbookSectionInput[]) {
 
     if (!Number.isFinite(section.total_pages) || section.total_pages <= 0) {
       badRequest(`${name}의 총 페이지는 1 이상이어야 합니다.`);
+    }
+
+    if (curriculumType === 'year') {
+      const target = section.first_semester_target_page;
+      if (
+        !Number.isInteger(target)
+        || target === undefined
+        || target === null
+        || target < 0
+        || target > section.total_pages
+      ) {
+        badRequest(`${name}의 1학기 수업 목표 페이지를 0에서 총 페이지 사이로 입력해주세요.`);
+      }
     }
 
     names.add(name);
@@ -156,6 +206,7 @@ function sectionJson() {
           'textbook_id', sec.textbook_id::text,
           'name', sec.name,
           'total_pages', sec.total_pages,
+          'first_semester_target_page', sec.first_semester_target_page,
           'current_page', sec.current_page,
           'progress_percent', ROUND((sec.current_page::numeric / NULLIF(sec.total_pages, 0)) * 100, 1)::float,
           'is_completed', (sec.current_page >= sec.total_pages),
@@ -179,6 +230,7 @@ async function getFirstSection(textbookId: string): Promise<TextbookSection | nu
       textbook_id::text,
       name,
       total_pages,
+      first_semester_target_page,
       current_page,
       ROUND((current_page::numeric / NULLIF(total_pages, 0)) * 100, 1)::float AS progress_percent,
       (current_page >= total_pages) AS is_completed,
@@ -227,6 +279,7 @@ export async function getTextbook(id: string): Promise<Textbook | null> {
       t.subject_id::text,
       t.name,
       t.cover_image_url,
+      t.curriculum_type,
       t.total_pages,
       t.current_page,
       ROUND((t.current_page::numeric / NULLIF(t.total_pages, 0)) * 100, 1)::float AS progress_percent,
@@ -248,7 +301,10 @@ export async function getTextbook(id: string): Promise<Textbook | null> {
   `, [id]);
 
   const textbooks = rows as unknown as Textbook[];
-  return textbooks[0] ? normalizeTextbook(textbooks[0]) : null;
+  if (!textbooks[0]) return null;
+
+  const settings = await getAcademicSettings();
+  return normalizeTextbook(textbooks[0], settings.current_semester);
 }
 
 export async function getTextbooks(
@@ -265,6 +321,7 @@ export async function getTextbooks(
       t.subject_id::text,
       t.name,
       t.cover_image_url,
+      t.curriculum_type,
       t.total_pages,
       t.current_page,
       ROUND((t.current_page::numeric / NULLIF(t.total_pages, 0)) * 100, 1)::float AS progress_percent,
@@ -287,7 +344,10 @@ export async function getTextbooks(
     ORDER BY s.sort_order, (t.current_page >= t.total_pages), t.name
   `, [studentId, subjectId ?? null, categoryFilter]);
 
-  return (rows as unknown as Textbook[]).map(normalizeTextbook);
+  const settings = await getAcademicSettings();
+  return (rows as unknown as Textbook[]).map((textbook) =>
+    normalizeTextbook(textbook, settings.current_semester)
+  );
 }
 
 export async function createTextbook(textbook: TextbookInput): Promise<Textbook> {
@@ -297,8 +357,9 @@ export async function createTextbook(textbook: TextbookInput): Promise<Textbook>
     badRequest('교재명을 입력해주세요.');
   }
 
-  const sections = normalizeSections(textbook);
-  validateSections(sections);
+  const curriculumType = normalizeCurriculumType(textbook.curriculum_type);
+  const sections = normalizeSections(textbook, curriculumType);
+  validateSections(sections, curriculumType);
   const coverImageUrl = nullableText(textbook.cover_image_url);
   validateCoverImage(coverImageUrl);
 
@@ -310,6 +371,7 @@ export async function createTextbook(textbook: TextbookInput): Promise<Textbook>
       subject_id,
       name,
       cover_image_url,
+      curriculum_type,
       total_pages
     )
     VALUES (
@@ -317,12 +379,14 @@ export async function createTextbook(textbook: TextbookInput): Promise<Textbook>
       ${textbook.subject_id},
       ${name},
       ${coverImageUrl},
+      ${curriculumType},
       ${totalPages}
     )
     ON CONFLICT (student_id, subject_id, name)
     DO UPDATE SET
       total_pages = EXCLUDED.total_pages,
       cover_image_url = COALESCE(EXCLUDED.cover_image_url, st_textbooks.cover_image_url),
+      curriculum_type = EXCLUDED.curriculum_type,
       current_page = LEAST(st_textbooks.current_page, EXCLUDED.total_pages),
       updated_at = NOW()
     RETURNING id::text
@@ -336,17 +400,20 @@ export async function createTextbook(textbook: TextbookInput): Promise<Textbook>
         textbook_id,
         name,
         total_pages,
+        first_semester_target_page,
         sort_order
       )
       VALUES (
         ${textbookId},
         ${section.name},
         ${section.total_pages},
+        ${section.first_semester_target_page ?? null},
         ${index}
       )
       ON CONFLICT (textbook_id, name)
       DO UPDATE SET
         total_pages = EXCLUDED.total_pages,
+        first_semester_target_page = EXCLUDED.first_semester_target_page,
         current_page = LEAST(st_textbook_sections.current_page, EXCLUDED.total_pages),
         sort_order = EXCLUDED.sort_order,
         updated_at = NOW()
@@ -376,14 +443,51 @@ export async function updateTextbook(
     : current.cover_image_url;
   validateCoverImage(coverImageUrl);
 
+  const curriculumType = hasOwn(textbook, 'curriculum_type')
+    ? normalizeCurriculumType(textbook.curriculum_type)
+    : current.curriculum_type;
+  const updatesBySection = new Map(
+    (textbook.section_targets ?? []).map((section) => [section.id, section])
+  );
+
+  if ((textbook.section_targets ?? []).some((section) =>
+    !current.sections?.some((currentSection) => currentSection.id === section.id)
+  )) {
+    badRequest('교재 구성 정보를 다시 확인해주세요.');
+  }
+
+  const nextSections = (current.sections ?? []).map((section) => {
+    const update = updatesBySection.get(section.id);
+    return {
+      ...section,
+      first_semester_target_page: curriculumType === 'year'
+        ? update?.first_semester_target_page
+          ?? section.first_semester_target_page
+          ?? Math.ceil(section.total_pages / 2)
+        : null,
+    };
+  });
+  validateSections(nextSections, curriculumType);
+
   const sql = getSql();
   await sql`
     UPDATE st_textbooks
     SET
       cover_image_url = ${coverImageUrl},
+      curriculum_type = ${curriculumType},
       updated_at = NOW()
     WHERE id = ${id}
   `;
+
+  for (const section of nextSections) {
+    await sql`
+      UPDATE st_textbook_sections
+      SET
+        first_semester_target_page = ${section.first_semester_target_page},
+        updated_at = NOW()
+      WHERE id = ${section.id}
+    `;
+  }
 
   const updated = await getTextbook(id);
   if (!updated) throw new Error('NOT_FOUND');
@@ -469,6 +573,7 @@ export async function getStudyRecords(
         'subject_id', t.subject_id::text,
         'name', t.name,
         'cover_image_url', t.cover_image_url,
+        'curriculum_type', t.curriculum_type,
         'total_pages', t.total_pages,
         'current_page', t.current_page,
         'progress_percent', ROUND((t.current_page::numeric / NULLIF(t.total_pages, 0)) * 100, 1)::float,
@@ -482,6 +587,7 @@ export async function getStudyRecords(
         'textbook_id', sec.textbook_id::text,
         'name', sec.name,
         'total_pages', sec.total_pages,
+        'first_semester_target_page', sec.first_semester_target_page,
         'current_page', sec.current_page,
         'progress_percent', ROUND((sec.current_page::numeric / NULLIF(sec.total_pages, 0)) * 100, 1)::float,
         'is_completed', (sec.current_page >= sec.total_pages),
@@ -542,6 +648,7 @@ export async function getStudyRecord(id: string): Promise<StudyRecord | null> {
         'subject_id', t.subject_id::text,
         'name', t.name,
         'cover_image_url', t.cover_image_url,
+        'curriculum_type', t.curriculum_type,
         'total_pages', t.total_pages,
         'current_page', t.current_page,
         'progress_percent', ROUND((t.current_page::numeric / NULLIF(t.total_pages, 0)) * 100, 1)::float,
@@ -555,6 +662,7 @@ export async function getStudyRecord(id: string): Promise<StudyRecord | null> {
         'textbook_id', sec.textbook_id::text,
         'name', sec.name,
         'total_pages', sec.total_pages,
+        'first_semester_target_page', sec.first_semester_target_page,
         'current_page', sec.current_page,
         'progress_percent', ROUND((sec.current_page::numeric / NULLIF(sec.total_pages, 0)) * 100, 1)::float,
         'is_completed', (sec.current_page >= sec.total_pages),

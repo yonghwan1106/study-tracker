@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Subject, StudyRecord, Textbook } from '@/types/database';
+import { CurriculumType, Subject, StudyRecord, Textbook } from '@/types/database';
 import { useStudent } from '@/components/layout/StudentContext';
 import TextbookCover from '@/components/textbooks/TextbookCover';
 import {
@@ -27,6 +27,7 @@ const NEW_TEXTBOOK = '__new__';
 interface SectionDraft {
   name: string;
   totalPages: string;
+  firstSemesterTargetPages: string;
 }
 
 function toNumber(value: string) {
@@ -38,6 +39,11 @@ function toNumber(value: string) {
 function formatProgress(page: number, total: number) {
   if (total <= 0) return 0;
   return Math.min(100, Math.round((page / total) * 1000) / 10);
+}
+
+function defaultFirstSemesterTarget(totalPages: string) {
+  const total = toNumber(totalPages);
+  return total && total > 0 ? String(Math.ceil(total / 2)) : '';
 }
 
 export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
@@ -58,12 +64,16 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
   const [textbookId, setTextbookId] = useState(editRecord?.textbook_id || NEW_TEXTBOOK);
   const [textbookSectionId, setTextbookSectionId] = useState(editRecord?.textbook_section_id || '');
   const [newTextbookName, setNewTextbookName] = useState('');
+  const [newCurriculumType, setNewCurriculumType] = useState<CurriculumType>('semester');
   const [newCoverImageUrl, setNewCoverImageUrl] = useState('');
   const [coverProcessing, setCoverProcessing] = useState(false);
   const [newSections, setNewSections] = useState<SectionDraft[]>([
-    { name: '본책', totalPages: '' },
+    { name: '본책', totalPages: '', firstSemesterTargetPages: '' },
   ]);
   const [newSectionIndex, setNewSectionIndex] = useState(0);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [curriculumTypeDraft, setCurriculumTypeDraft] = useState<CurriculumType>('semester');
+  const [sectionTargetPages, setSectionTargetPages] = useState<Record<string, string>>({});
   const [startPage, setStartPage] = useState(
     editRecord?.start_page !== null && editRecord?.start_page !== undefined
       ? String(editRecord.start_page)
@@ -129,6 +139,24 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
     ?? selectedTextbook?.sections?.[0]
     ?? null;
   const newSelectedSection = newSections[newSectionIndex] ?? newSections[0];
+
+  useEffect(() => {
+    if (!selectedTextbook) {
+      setCurriculumTypeDraft('semester');
+      setSectionTargetPages({});
+      return;
+    }
+
+    setCurriculumTypeDraft(selectedTextbook.curriculum_type);
+    setSectionTargetPages(
+      Object.fromEntries(
+        (selectedTextbook.sections ?? []).map((section) => [
+          section.id,
+          String(section.first_semester_target_page ?? Math.ceil(section.total_pages / 2)),
+        ])
+      )
+    );
+  }, [selectedTextbook]);
 
   useEffect(() => {
     if (editRecord || !selectedSection || startPage !== '') return;
@@ -206,6 +234,44 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
     }
   };
 
+  const handleTextbookSettingsSave = async () => {
+    if (!selectedTextbook) return;
+
+    const sections = selectedTextbook.sections ?? [];
+    const sectionTargets = sections.map((section) => ({
+      id: section.id,
+      first_semester_target_page: curriculumTypeDraft === 'year'
+        ? toNumber(sectionTargetPages[section.id] ?? '')
+        : null,
+    }));
+
+    if (
+      curriculumTypeDraft === 'year'
+      && sectionTargets.some((section, index) => {
+        const target = section.first_semester_target_page;
+        const total = sections[index].total_pages;
+        return !Number.isInteger(target) || target === null || target < 0 || target > total;
+      })
+    ) {
+      setError('각 구성의 1학기 목표를 0에서 총 페이지 사이로 입력해주세요.');
+      return;
+    }
+
+    setSettingsSaving(true);
+    setError(null);
+    try {
+      const updatedTextbook = await updateTextbook(selectedTextbook.id, {
+        curriculum_type: curriculumTypeDraft,
+        section_targets: sectionTargets,
+      });
+      updateTextbookInState(updatedTextbook);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '수업 진도 설정을 저장하지 못했습니다.');
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -250,6 +316,9 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
           .map((section) => ({
             name: section.name.trim(),
             total_pages: toNumber(section.totalPages) ?? 0,
+            first_semester_target_page: newCurriculumType === 'year'
+              ? toNumber(section.firstSemesterTargetPages)
+              : null,
           }))
           .filter((section) => section.name || section.total_pages > 0);
 
@@ -265,11 +334,26 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
           return;
         }
 
+        if (
+          newCurriculumType === 'year'
+          && sections.some((section) =>
+            !Number.isInteger(section.first_semester_target_page)
+            || section.first_semester_target_page === null
+            || section.first_semester_target_page < 0
+            || section.first_semester_target_page > section.total_pages
+          )
+        ) {
+          setError('각 구성의 1학기 목표를 0에서 총 페이지 사이로 입력해주세요.');
+          setSaving(false);
+          return;
+        }
+
         textbookForRecord = await createTextbook({
           student_id: selectedStudent.id,
           subject_id: subjectId,
           name: newTextbookName,
           cover_image_url: newCoverImageUrl || null,
+          curriculum_type: newCurriculumType,
           sections,
         });
         sectionForRecord = textbookForRecord.sections?.[Math.min(newSectionIndex, sections.length - 1)]
@@ -426,6 +510,45 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
               className="w-full"
             />
 
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-bold">교재 기간</legend>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  ['semester', '한 학기용'],
+                  ['year', '1년용'],
+                ] as const).map(([value, label]) => (
+                  <label
+                    key={value}
+                    className="flex cursor-pointer items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-colors has-[:checked]:border-[var(--primary)] has-[:checked]:bg-[var(--primary)]/10 has-[:checked]:text-[var(--primary)]"
+                  >
+                    <input
+                      type="radio"
+                      name="new-curriculum-type"
+                      value={value}
+                      checked={newCurriculumType === value}
+                      onChange={() => {
+                        setNewCurriculumType(value);
+                        if (value === 'year') {
+                          setNewSections((sections) => sections.map((section) => ({
+                            ...section,
+                            firstSemesterTargetPages:
+                              section.firstSemesterTargetPages || defaultFirstSemesterTarget(section.totalPages),
+                          })));
+                        }
+                      }}
+                      className="sr-only"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              {newCurriculumType === 'year' && (
+                <p className="text-xs text-[var(--muted)]">
+                  각 구성의 1학기 수업 목표는 총 페이지의 절반으로 자동 입력되며 바꿀 수 있어요.
+                </p>
+              )}
+            </fieldset>
+
             <div className="rounded-2xl border border-dashed border-[var(--border)] p-4">
               <div className="flex items-center gap-4">
                 <TextbookCover
@@ -480,7 +603,11 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
                     const hasWorkbook = newSections.some((section) => section.name === '워크북');
                     setNewSections([
                       ...newSections,
-                      { name: hasWorkbook ? `구성 ${newSections.length + 1}` : '워크북', totalPages: '' },
+                      {
+                        name: hasWorkbook ? `구성 ${newSections.length + 1}` : '워크북',
+                        totalPages: '',
+                        firstSemesterTargetPages: '',
+                      },
                     ]);
                     setNewSectionIndex(newSections.length);
                   }}
@@ -491,7 +618,14 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
               </div>
 
               {newSections.map((section, index) => (
-                <div key={index} className="grid gap-2 sm:grid-cols-[1fr_110px_auto]">
+                <div
+                  key={index}
+                  className={`grid gap-2 ${
+                    newCurriculumType === 'year'
+                      ? 'sm:grid-cols-[1fr_110px_110px_auto]'
+                      : 'sm:grid-cols-[1fr_110px_auto]'
+                  }`}
+                >
                   <input
                     type="text"
                     value={section.name}
@@ -509,17 +643,44 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
                     value={section.totalPages}
                     onChange={(e) => {
                       const next = [...newSections];
-                      next[index] = { ...next[index], totalPages: e.target.value };
+                      next[index] = {
+                        ...next[index],
+                        totalPages: e.target.value,
+                        firstSemesterTargetPages:
+                          newCurriculumType === 'year' && !next[index].firstSemesterTargetPages
+                            ? defaultFirstSemesterTarget(e.target.value)
+                            : next[index].firstSemesterTargetPages,
+                      };
                       setNewSections(next);
                     }}
                     placeholder="총 페이지"
                     className="w-full"
                   />
+                  {newCurriculumType === 'year' && (
+                    <input
+                      type="number"
+                      min={0}
+                      max={toNumber(section.totalPages) ?? undefined}
+                      value={section.firstSemesterTargetPages}
+                      onChange={(e) => {
+                        const next = [...newSections];
+                        next[index] = { ...next[index], firstSemesterTargetPages: e.target.value };
+                        setNewSections(next);
+                      }}
+                      placeholder="1학기 목표"
+                      aria-label={`${section.name || '구성'} 1학기 목표 페이지`}
+                      className="w-full"
+                    />
+                  )}
                   <button
                     type="button"
                     onClick={() => {
                       const next = newSections.filter((_, sectionIndex) => sectionIndex !== index);
-                      setNewSections(next.length > 0 ? next : [{ name: '본책', totalPages: '' }]);
+                      setNewSections(next.length > 0 ? next : [{
+                        name: '본책',
+                        totalPages: '',
+                        firstSemesterTargetPages: '',
+                      }]);
                       setNewSectionIndex(0);
                     }}
                     disabled={newSections.length === 1}
@@ -609,6 +770,81 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
               </div>
             </div>
 
+            <details className="border-t border-[var(--border)] pt-3">
+              <summary className="cursor-pointer text-sm font-bold text-[var(--primary)]">
+                수업 진도 설정
+              </summary>
+              <div className="space-y-3 pt-3">
+                <fieldset>
+                  <legend className="sr-only">교재 기간</legend>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      ['semester', '한 학기용'],
+                      ['year', '1년용'],
+                    ] as const).map(([value, label]) => (
+                      <label
+                        key={value}
+                        className="flex cursor-pointer items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-colors has-[:checked]:border-[var(--primary)] has-[:checked]:bg-[var(--primary)]/10 has-[:checked]:text-[var(--primary)]"
+                      >
+                        <input
+                          type="radio"
+                          name="existing-curriculum-type"
+                          value={value}
+                          checked={curriculumTypeDraft === value}
+                          onChange={() => {
+                            setCurriculumTypeDraft(value);
+                            if (value === 'year') {
+                              setSectionTargetPages((targets) => Object.fromEntries(
+                                (selectedTextbook.sections ?? []).map((section) => [
+                                  section.id,
+                                  targets[section.id]
+                                    || String(section.first_semester_target_page ?? Math.ceil(section.total_pages / 2)),
+                                ])
+                              ));
+                            }
+                          }}
+                          className="sr-only"
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+
+                {curriculumTypeDraft === 'year' && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-[var(--muted)]">구성별 1학기 수업 목표 페이지</p>
+                    {(selectedTextbook.sections ?? []).map((section) => (
+                      <label key={section.id} className="grid grid-cols-[1fr_110px] items-center gap-3 text-sm">
+                        <span className="truncate">{section.name} · 총 {section.total_pages}p</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={section.total_pages}
+                          value={sectionTargetPages[section.id] ?? ''}
+                          onChange={(e) => setSectionTargetPages((targets) => ({
+                            ...targets,
+                            [section.id]: e.target.value,
+                          }))}
+                          aria-label={`${section.name} 1학기 목표 페이지`}
+                          className="w-full"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleTextbookSettingsSave}
+                  disabled={settingsSaving}
+                  className="w-full rounded-lg border border-[var(--primary)] px-3 py-2 text-sm font-bold text-[var(--primary)] disabled:opacity-50"
+                >
+                  {settingsSaving ? '저장 중...' : '수업 진도 설정 저장'}
+                </button>
+              </div>
+            </details>
+
             {selectedTextbook.sections && selectedTextbook.sections.length > 1 && (
               <div className="space-y-2">
                 <span className="text-xs text-[var(--muted)]">기록할 구성</span>
@@ -645,6 +881,30 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
                 }}
               />
             </div>
+
+            {selectedTextbook.curriculum_type === 'year' && selectedTextbook.school_progress && (
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-[var(--muted)]">
+                    {selectedTextbook.school_progress.current_semester}학기 수업 진도
+                  </span>
+                  <span className="font-bold">
+                    {selectedTextbook.school_progress.current_pages}/
+                    {selectedTextbook.school_progress.target_pages}p ·
+                    {selectedTextbook.school_progress.progress_percent}%
+                  </span>
+                </div>
+                <div className="progress-bar">
+                  <div
+                    className="progress-bar-fill"
+                    style={{
+                      width: `${selectedTextbook.school_progress.progress_percent}%`,
+                      background: selectedSubject?.color,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
 
             {selectedSection && (
               <div className="rounded-2xl p-3 space-y-2" style={{ background: `${selectedSubject?.color ?? '#8b9aaa'}10` }}>

@@ -1,4 +1,12 @@
-import { SchoolEvent, SchoolEventType, Student, StudyRecord, Subject, Textbook } from '@/types/database';
+import {
+  CurriculumType,
+  SchoolEvent,
+  SchoolEventType,
+  Student,
+  StudyRecord,
+  Subject,
+  Textbook,
+} from '@/types/database';
 import { startOfWeek, endOfWeek, format } from 'date-fns';
 
 type SubjectCategory = Subject['category'];
@@ -12,12 +20,24 @@ interface TextbookPayload {
   subject_id: string;
   name: string;
   cover_image_url?: string | null;
+  curriculum_type?: CurriculumType;
   total_pages?: number;
-  sections?: { name: string; total_pages: number }[];
+  sections?: {
+    name: string;
+    total_pages: number;
+    first_semester_target_page?: number | null;
+  }[];
 }
 
 interface TextbookUpdatePayload {
   cover_image_url?: string | null;
+  curriculum_type?: CurriculumType;
+  section_targets?: { id: string; first_semester_target_page?: number | null }[];
+}
+
+export interface AcademicSettings {
+  current_semester: 1 | 2;
+  updated_at: string;
 }
 
 interface StudyRecordPayload {
@@ -143,6 +163,19 @@ export async function updateTextbook(
   return request<Textbook>(`/api/textbooks/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(textbook),
+  });
+}
+
+export async function getAcademicSettings(): Promise<AcademicSettings> {
+  return request<AcademicSettings>('/api/academic-settings');
+}
+
+export async function updateAcademicSettings(
+  currentSemester: 1 | 2
+): Promise<AcademicSettings> {
+  return request<AcademicSettings>('/api/academic-settings', {
+    method: 'PATCH',
+    body: JSON.stringify({ current_semester: currentSemester }),
   });
 }
 

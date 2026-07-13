@@ -18,6 +18,7 @@ export interface Textbook {
   subject_id: string;
   name: string;
   cover_image_url: string | null;
+  curriculum_type: CurriculumType;
   total_pages: number;
   current_page: number;
   progress_percent: number;
@@ -26,6 +27,17 @@ export interface Textbook {
   updated_at: string;
   subject?: Subject;
   sections?: TextbookSection[];
+  school_progress?: SchoolProgress;
+}
+
+export type CurriculumType = 'semester' | 'year';
+
+export interface SchoolProgress {
+  current_semester: 1 | 2;
+  current_pages: number;
+  target_pages: number;
+  progress_percent: number;
+  is_completed: boolean;
 }
 
 export interface TextbookSection {
@@ -33,6 +45,7 @@ export interface TextbookSection {
   textbook_id: string;
   name: string;
   total_pages: number;
+  first_semester_target_page: number | null;
   current_page: number;
   progress_percent: number;
   is_completed: boolean;
