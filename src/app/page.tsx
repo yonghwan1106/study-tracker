@@ -17,7 +17,7 @@ import { formatDate, getToday } from '@/lib/utils';
 const studentConfig: Record<string, { emoji: string; avatar?: string; greeting: string; color: string }> = {
   '박건호': {
     emoji: '🧑‍💻',
-    avatar: '/students/gunho.jpg',
+    avatar: '/students/gunho.png',
     greeting: '오늘도 한 권씩 정복!',
     color: '#4f8fea',
   },

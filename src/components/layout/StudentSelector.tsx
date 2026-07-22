@@ -6,7 +6,7 @@ import { useStudent } from './StudentContext';
 const studentConfig: Record<string, { emoji: string; avatar?: string; color: string; bgColor: string; glowColor: string }> = {
   '박건호': {
     emoji: '🧑‍💻',
-    avatar: '/students/gunho.jpg',
+    avatar: '/students/gunho.png',
     color: '#4f8fea',
     bgColor: 'rgba(79, 143, 234, 0.15)',
     glowColor: 'rgba(79, 143, 234, 0.3)',
