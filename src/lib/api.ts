@@ -30,6 +30,7 @@ interface TextbookPayload {
 }
 
 interface TextbookUpdatePayload {
+  name?: string;
   cover_image_url?: string | null;
   curriculum_type?: CurriculumType;
   section_targets?: { id: string; first_semester_target_page?: number | null }[];

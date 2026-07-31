@@ -29,6 +29,7 @@ export interface TextbookInput {
 }
 
 export interface TextbookUpdateInput {
+  name?: string;
   cover_image_url?: string | null;
   curriculum_type?: CurriculumType;
   section_targets?: { id: string; first_semester_target_page?: number | null }[];
@@ -438,6 +439,19 @@ export async function updateTextbook(
     throw new Error('NOT_FOUND');
   }
 
+  const hasNameUpdate = hasOwn(textbook, 'name');
+  let name = current.name;
+  if (hasNameUpdate) {
+    if (typeof textbook.name !== 'string') {
+      badRequest('교재명을 입력해주세요.');
+    }
+
+    name = textbook.name.trim();
+    if (!name) {
+      badRequest('교재명을 입력해주세요.');
+    }
+  }
+
   const coverImageUrl = hasOwn(textbook, 'cover_image_url')
     ? nullableText(textbook.cover_image_url)
     : current.cover_image_url;
@@ -470,14 +484,43 @@ export async function updateTextbook(
   validateSections(nextSections, curriculumType);
 
   const sql = getSql();
-  await sql`
-    UPDATE st_textbooks
-    SET
-      cover_image_url = ${coverImageUrl},
-      curriculum_type = ${curriculumType},
-      updated_at = NOW()
-    WHERE id = ${id}
-  `;
+  if (hasNameUpdate && name !== current.name) {
+    const duplicates = await sql`
+      SELECT 1
+      FROM st_textbooks
+      WHERE student_id = ${current.student_id}
+        AND subject_id = ${current.subject_id}
+        AND name = ${name}
+        AND id <> ${id}
+      LIMIT 1
+    `;
+
+    if ((duplicates as unknown as { exists: number }[]).length > 0) {
+      badRequest('같은 과목에 동일한 이름의 교재가 이미 있습니다.');
+    }
+  }
+
+  try {
+    await sql`
+      UPDATE st_textbooks
+      SET
+        name = ${name},
+        cover_image_url = ${coverImageUrl},
+        curriculum_type = ${curriculumType},
+        updated_at = NOW()
+      WHERE id = ${id}
+    `;
+  } catch (error) {
+    if (
+      typeof error === 'object'
+      && error !== null
+      && 'code' in error
+      && error.code === '23505'
+    ) {
+      badRequest('같은 과목에 동일한 이름의 교재가 이미 있습니다.');
+    }
+    throw error;
+  }
 
   for (const section of nextSections) {
     await sql`

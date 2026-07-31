@@ -12,7 +12,9 @@ import {
   getWeeklyStats,
 } from '@/lib/api';
 import { StudyRecord, Subject, Textbook } from '@/types/database';
+import { partitionTextbooksForCurrentSemester } from '@/lib/textbookVisibility';
 import { formatDate, getToday } from '@/lib/utils';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 const studentConfig: Record<string, { emoji: string; avatar?: string; greeting: string; color: string }> = {
   '박건호': {
@@ -53,6 +55,69 @@ const homeSubjectOrder: Record<string, number> = {
 
 const homeSubjectCategories: Subject['category'][] = ['math', 'english', 'korean'];
 
+function HomeTextbookLink({ textbook }: { textbook: Textbook }) {
+  return (
+    <Link
+      href={`/record?textbookId=${encodeURIComponent(textbook.id)}`}
+      className="-mx-2 block space-y-2 rounded-2xl p-2 transition-all hover:bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+      aria-label={`${textbook.name} 진도 수정하기`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <TextbookCover
+            coverImageUrl={textbook.cover_image_url}
+            title={textbook.name}
+            subjectColor={textbook.subject?.color}
+            size="sm"
+          />
+          <div className="min-w-0">
+            <p className="font-bold truncate">{textbook.name}</p>
+            <p className="text-xs text-[var(--muted)]">
+              {textbook.subject?.name} · {textbook.current_page}/{textbook.total_pages}p
+            </p>
+            {textbook.curriculum_type === 'year' && textbook.school_progress && (
+              <p className="text-xs font-medium" style={{ color: textbook.subject?.color }}>
+                {textbook.school_progress.current_semester}학기 수업 ·
+                {textbook.school_progress.current_pages}/
+                {textbook.school_progress.target_pages}p ·
+                {textbook.school_progress.progress_percent}%
+              </p>
+            )}
+          </div>
+        </div>
+        <span
+          className="text-sm font-bold px-2.5 py-1 rounded-full flex-shrink-0"
+          style={{
+            background: `${textbook.subject?.color}15`,
+            color: textbook.subject?.color,
+          }}
+        >
+          {textbook.progress_percent}%
+        </span>
+      </div>
+      <div className="progress-bar">
+        <div
+          className="progress-bar-fill"
+          style={{
+            width: `${textbook.progress_percent}%`,
+            background: textbook.subject?.color,
+          }}
+        />
+      </div>
+      {textbook.sections && textbook.sections.length > 1 && (
+        <div className="grid gap-1.5 pt-1">
+          {textbook.sections.map((section) => (
+            <div key={section.id} className="flex items-center justify-between text-xs text-[var(--muted)]">
+              <span>{section.name}</span>
+              <span>{section.current_page}/{section.total_pages}p · {section.progress_percent}%</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Link>
+  );
+}
+
 export default function Home() {
   const { selectedStudent, loading: studentLoading } = useStudent();
   const [todayRecords, setTodayRecords] = useState<StudyRecord[]>([]);
@@ -63,6 +128,7 @@ export default function Home() {
     subjectBreakdown: { subject: Subject; pages: number }[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showPreviousTextbooks, setShowPreviousTextbooks] = useState(false);
   const [motivation] = useState(() =>
     motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)]
   );
@@ -72,6 +138,7 @@ export default function Home() {
       if (!selectedStudent) return;
 
       setLoading(true);
+      setShowPreviousTextbooks(false);
       try {
         const today = getToday();
         const [records, textbookData, weekly] = await Promise.all([
@@ -134,7 +201,7 @@ export default function Home() {
   };
   const hasRecordsToday = todayRecords.length > 0;
   const todayPages = todayRecords.reduce((sum, record) => sum + getPagesDone(record), 0);
-  const activeTextbooks = textbooks
+  const sortedTextbooks = [...textbooks]
     .sort((a, b) => {
       const subjectDiff =
         (homeSubjectOrder[a.subject?.name ?? ''] ?? 99) -
@@ -144,6 +211,13 @@ export default function Home() {
 
       return a.name.localeCompare(b.name, 'ko');
     });
+  const {
+    isArchiveActive,
+    isSecondSemester,
+    currentTextbooks,
+    previousTextbooks,
+  } = partitionTextbooksForCurrentSemester(sortedTextbooks);
+  const hasHomeTextbooks = currentTextbooks.length > 0 || previousTextbooks.length > 0;
 
   return (
     <div className="space-y-6">
@@ -318,69 +392,43 @@ export default function Home() {
           <div className="glass-card p-6 flex items-center justify-center">
             <div className="w-8 h-8 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : activeTextbooks.length > 0 ? (
+        ) : hasHomeTextbooks ? (
           <div className="glass-card p-5 space-y-4">
-            {activeTextbooks.map((textbook) => (
-              <Link
-                key={textbook.id}
-                href={`/record?textbookId=${encodeURIComponent(textbook.id)}`}
-                className="-mx-2 block space-y-2 rounded-2xl p-2 transition-all hover:bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                aria-label={`${textbook.name} 진도 수정하기`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <TextbookCover
-                      coverImageUrl={textbook.cover_image_url}
-                      title={textbook.name}
-                      subjectColor={textbook.subject?.color}
-                      size="sm"
-                    />
-                    <div className="min-w-0">
-                      <p className="font-bold truncate">{textbook.name}</p>
-                      <p className="text-xs text-[var(--muted)]">
-                        {textbook.subject?.name} · {textbook.current_page}/{textbook.total_pages}p
-                      </p>
-                      {textbook.curriculum_type === 'year' && textbook.school_progress && (
-                        <p className="text-xs font-medium" style={{ color: textbook.subject?.color }}>
-                          {textbook.school_progress.current_semester}학기 수업 ·
-                          {textbook.school_progress.current_pages}/
-                          {textbook.school_progress.target_pages}p ·
-                          {textbook.school_progress.progress_percent}%
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <span
-                    className="text-sm font-bold px-2.5 py-1 rounded-full flex-shrink-0"
-                    style={{
-                      background: `${textbook.subject?.color}15`,
-                      color: textbook.subject?.color,
-                    }}
-                  >
-                    {textbook.progress_percent}%
-                  </span>
-                </div>
-                <div className="progress-bar">
-                  <div
-                    className="progress-bar-fill"
-                    style={{
-                      width: `${textbook.progress_percent}%`,
-                      background: textbook.subject?.color,
-                    }}
-                  />
-                </div>
-                {textbook.sections && textbook.sections.length > 1 && (
-                  <div className="grid gap-1.5 pt-1">
-                    {textbook.sections.map((section) => (
-                      <div key={section.id} className="flex items-center justify-between text-xs text-[var(--muted)]">
-                        <span>{section.name}</span>
-                        <span>{section.current_page}/{section.total_pages}p · {section.progress_percent}%</span>
-                      </div>
+            {currentTextbooks.map((textbook) => (
+              <HomeTextbookLink key={textbook.id} textbook={textbook} />
+            ))}
+
+            {isArchiveActive && previousTextbooks.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowPreviousTextbooks((visible) => !visible)}
+                  className="flex w-full items-center justify-center gap-2 border-t border-[var(--border)] pt-4 text-sm font-bold text-[var(--muted)] transition-colors hover:text-[var(--primary)]"
+                  aria-expanded={showPreviousTextbooks}
+                >
+                  {isSecondSemester ? '1학기·기타 교재' : '1학기 교재'}{' '}
+                  {showPreviousTextbooks ? '접기' : '보기'}
+                  <span className="text-xs font-normal">({previousTextbooks.length})</span>
+                  {showPreviousTextbooks ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </button>
+
+                {showPreviousTextbooks && (
+                  <div className="space-y-4 border-t border-dashed border-[var(--border)] pt-4">
+                    <p className="text-xs font-bold text-[var(--muted)]">
+                      {isSecondSemester ? '지난 1학기·기타 교재' : '지난 1학기 교재'}
+                    </p>
+                    {previousTextbooks.map((textbook) => (
+                      <HomeTextbookLink key={textbook.id} textbook={textbook} />
                     ))}
                   </div>
                 )}
-              </Link>
-            ))}
+              </>
+            )}
+
             <Link
               href="/goals"
               className="flex items-center justify-center gap-2 text-sm font-medium text-[var(--primary)] pt-2 hover:gap-3 transition-all"

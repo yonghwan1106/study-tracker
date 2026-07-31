@@ -1,4 +1,5 @@
 import { getSql } from '@/lib/db';
+import { getScheduledSemester } from '@/lib/textbookVisibility';
 
 export interface AcademicSettings {
   current_semester: 1 | 2;
@@ -14,11 +15,24 @@ export async function getAcademicSettings(): Promise<AcademicSettings> {
   `;
 
   const settings = (rows as unknown as AcademicSettings[])[0];
-  if (settings) return settings;
+  if (settings) {
+    if (getScheduledSemester() === 1 || settings.current_semester === 2) return settings;
 
+    const updatedRows = await sql`
+      UPDATE st_academic_settings
+      SET current_semester = 2, updated_at = NOW()
+      WHERE id = TRUE
+        AND current_semester = 1
+        AND updated_at < '2026-08-03T00:00:00+09:00'::timestamptz
+      RETURNING current_semester, updated_at::text
+    `;
+    return (updatedRows as unknown as AcademicSettings[])[0] ?? settings;
+  }
+
+  const scheduledSemester = getScheduledSemester();
   await sql`
     INSERT INTO st_academic_settings (id, current_semester)
-    VALUES (TRUE, 1)
+    VALUES (TRUE, ${scheduledSemester})
     ON CONFLICT (id) DO NOTHING
   `;
 
