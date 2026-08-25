@@ -44,6 +44,7 @@ export interface AcademicSettings {
 interface StudyRecordPayload {
   student_id: string;
   textbook_id: string;
+  textbook_round_id?: string;
   textbook_section_id?: string;
   study_date: string;
   start_page?: number | null;
@@ -54,6 +55,7 @@ interface StudyRecordPayload {
 
 interface StudyRecordUpdatePayload {
   textbook_id?: string;
+  textbook_round_id?: string;
   textbook_section_id?: string;
   study_date?: string;
   start_page?: number | null;
@@ -164,6 +166,12 @@ export async function updateTextbook(
   return request<Textbook>(`/api/textbooks/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(textbook),
+  });
+}
+
+export async function startNextTextbookRound(textbookId: string): Promise<Textbook> {
+  return request<Textbook>(`/api/textbooks/${textbookId}/rounds`, {
+    method: 'POST',
   });
 }
 

@@ -27,6 +27,8 @@ export interface Textbook {
   updated_at: string;
   subject?: Subject;
   sections?: TextbookSection[];
+  rounds: TextbookRound[];
+  active_round: TextbookRound;
   school_progress?: SchoolProgress;
 }
 
@@ -54,10 +56,26 @@ export interface TextbookSection {
   updated_at: string;
 }
 
+export type TextbookRoundStatus = 'in_progress' | 'completed';
+
+export interface TextbookRound {
+  id: string;
+  textbook_id: string;
+  round_number: number;
+  status: TextbookRoundStatus;
+  started_at: string;
+  completed_at: string | null;
+  current_page: number;
+  total_pages: number;
+  progress_percent: number;
+  is_completed: boolean;
+}
+
 export interface StudyRecord {
   id: string;
   student_id: string;
   textbook_id: string;
+  textbook_round_id: string;
   textbook_section_id: string;
   subject_id: string;
   study_date: string;
@@ -68,8 +86,10 @@ export interface StudyRecord {
   memo: string | null;
   created_at: string;
   updated_at: string;
+  round_number: number;
   subject?: Subject;
   textbook?: Textbook;
+  round?: TextbookRound;
   textbook_section?: TextbookSection;
 }
 

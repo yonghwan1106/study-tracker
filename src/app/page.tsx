@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useStudent } from '@/components/layout/StudentContext';
 import TextbookCover from '@/components/textbooks/TextbookCover';
+import TextbookRoundStatus from '@/components/textbooks/TextbookRoundStatus';
 import {
   getPagesDone,
   getStudyRecordsByDate,
@@ -72,6 +73,7 @@ function HomeTextbookLink({ textbook }: { textbook: Textbook }) {
           />
           <div className="min-w-0">
             <p className="font-bold truncate">{textbook.name}</p>
+            <TextbookRoundStatus textbook={textbook} />
             <p className="text-xs text-[var(--muted)]">
               {textbook.subject?.name} · {textbook.current_page}/{textbook.total_pages}p
             </p>
@@ -357,6 +359,7 @@ export default function Home() {
                       {record.textbook && (
                         <span className="text-[var(--muted)] font-normal text-sm">
                           {' '}· {record.textbook.name}
+                          {record.round_number > 1 && ` · ${record.round_number}회독`}
                           {record.textbook_section && ` · ${record.textbook_section.name}`}
                         </span>
                       )}

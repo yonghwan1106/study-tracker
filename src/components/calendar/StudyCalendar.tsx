@@ -209,6 +209,7 @@ export default function StudyCalendar() {
                       </div>
                       <p className="text-sm text-muted truncate">
                         {record.textbook?.name}
+                        {record.round_number > 1 && ` · ${record.round_number}회독`}
                         {record.textbook_section && ` · ${record.textbook_section.name}`}
                       </p>
                       <p className="text-sm text-muted">

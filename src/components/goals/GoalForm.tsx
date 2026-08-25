@@ -5,9 +5,11 @@ import Link from 'next/link';
 import { Textbook } from '@/types/database';
 import { useStudent } from '@/components/layout/StudentContext';
 import TextbookCover from '@/components/textbooks/TextbookCover';
+import TextbookRoundStatus from '@/components/textbooks/TextbookRoundStatus';
 import {
   getAcademicSettings,
   getTextbooks,
+  startNextTextbookRound,
   updateAcademicSettings,
   updateTextbook,
 } from '@/lib/api';
@@ -20,6 +22,7 @@ import {
   ChevronUp,
   Loader2,
   Plus,
+  RotateCcw,
   X,
 } from 'lucide-react';
 
@@ -68,6 +71,7 @@ function TextbookCard({
   const [isEditing, setIsEditing] = useState(false);
   const [draftName, setDraftName] = useState(textbook.name);
   const [isSaving, setIsSaving] = useState(false);
+  const [isStartingRound, setIsStartingRound] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const startEditing = () => {
@@ -112,6 +116,23 @@ function TextbookCard({
       setSaveError(error instanceof Error ? error.message : '교재명 저장에 실패했습니다.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const startNextRound = async () => {
+    const nextRoundNumber = textbook.active_round.round_number + 1;
+    if (!confirm(`${textbook.name}의 ${nextRoundNumber}회독을 시작할까요?\n이전 회독 기록은 그대로 보존됩니다.`)) {
+      return;
+    }
+
+    setIsStartingRound(true);
+    setSaveError(null);
+    try {
+      onTextbookUpdated(await startNextTextbookRound(textbook.id));
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : '다음 회독을 시작하지 못했습니다.');
+    } finally {
+      setIsStartingRound(false);
     }
   };
 
@@ -189,6 +210,7 @@ function TextbookCard({
                   {textbook.name}
                 </button>
               )}
+              <TextbookRoundStatus textbook={textbook} className="mt-0.5" />
               <p className="text-sm text-muted">
                 {textbook.current_page}/{textbook.total_pages}p
               </p>
@@ -263,6 +285,22 @@ function TextbookCard({
               </div>
             ))}
           </div>
+        )}
+
+        {textbook.active_round.is_completed && (
+          <button
+            type="button"
+            onClick={startNextRound}
+            disabled={isStartingRound}
+            className="pointer-events-auto flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--primary)] px-3 py-2 text-sm font-bold text-[var(--primary)] transition-colors hover:bg-[var(--primary)]/10 disabled:opacity-50"
+          >
+            {isStartingRound ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RotateCcw className="h-4 w-4" />
+            )}
+            {textbook.active_round.round_number + 1}회독 시작
+          </button>
         )}
       </div>
     </article>

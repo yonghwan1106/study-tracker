@@ -5,16 +5,19 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { CurriculumType, Subject, StudyRecord, Textbook } from '@/types/database';
 import { useStudent } from '@/components/layout/StudentContext';
 import TextbookCover from '@/components/textbooks/TextbookCover';
+import TextbookRoundStatus from '@/components/textbooks/TextbookRoundStatus';
 import {
   createStudyRecord,
   createTextbook,
   getSubjects,
   getTextbooks,
+  startNextTextbookRound,
   updateTextbook,
   updateStudyRecord,
 } from '@/lib/api';
 import { compressTextbookCover } from '@/lib/clientImages';
 import { getToday } from '@/lib/utils';
+import { Loader2, RotateCcw } from 'lucide-react';
 import SubjectSelect from './SubjectSelect';
 
 interface RecordFormProps {
@@ -72,6 +75,7 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
   ]);
   const [newSectionIndex, setNewSectionIndex] = useState(0);
   const [settingsSaving, setSettingsSaving] = useState(false);
+  const [roundStarting, setRoundStarting] = useState(false);
   const [curriculumTypeDraft, setCurriculumTypeDraft] = useState<CurriculumType>('semester');
   const [sectionTargetPages, setSectionTargetPages] = useState<Record<string, string>>({});
   const [startPage, setStartPage] = useState(
@@ -139,6 +143,9 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
     ?? selectedTextbook?.sections?.[0]
     ?? null;
   const newSelectedSection = newSections[newSectionIndex] ?? newSections[0];
+  const roundNeedsRestart = Boolean(
+    !editRecord && selectedTextbook?.active_round.is_completed
+  );
 
   useEffect(() => {
     if (!selectedTextbook) {
@@ -272,6 +279,29 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
     }
   };
 
+  const handleStartNextRound = async () => {
+    if (!selectedTextbook || roundStarting) return;
+
+    const nextRoundNumber = selectedTextbook.active_round.round_number + 1;
+    if (!confirm(`${selectedTextbook.name}의 ${nextRoundNumber}회독을 시작할까요?\n이전 회독 기록은 그대로 보존됩니다.`)) {
+      return;
+    }
+
+    setRoundStarting(true);
+    setError(null);
+    try {
+      const updatedTextbook = await startNextTextbookRound(selectedTextbook.id);
+      updateTextbookInState(updatedTextbook);
+      setTextbookSectionId(updatedTextbook.sections?.[0]?.id ?? '');
+      setStartPage('1');
+      setEndPage('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '다음 회독을 시작하지 못했습니다.');
+    } finally {
+      setRoundStarting(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -382,6 +412,10 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
       const recordData = {
         student_id: selectedStudent.id,
         textbook_id: textbookForRecord.id,
+        textbook_round_id:
+          editRecord?.textbook_id === textbookForRecord.id
+            ? editRecord.textbook_round_id
+            : textbookForRecord.active_round.id,
         textbook_section_id: sectionForRecord.id,
         study_date: studyDate,
         start_page: start,
@@ -494,7 +528,7 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
         >
           {subjectTextbooks.map((textbook) => (
             <option key={textbook.id} value={textbook.id}>
-              {textbook.name} ({textbook.current_page}/{textbook.total_pages}p)
+              {textbook.name} · {textbook.active_round.round_number}회독 ({textbook.current_page}/{textbook.total_pages}p)
             </option>
           ))}
           <option value={NEW_TEXTBOOK}>+ 새 교재 등록</option>
@@ -724,11 +758,36 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
               />
               <div className="min-w-0">
                 <p className="font-bold truncate">{selectedTextbook.name}</p>
+                <TextbookRoundStatus textbook={selectedTextbook} />
                 <p className="text-xs text-[var(--muted)]">
                   {selectedTextbook.current_page}/{selectedTextbook.total_pages}p · {selectedTextbook.progress_percent}%
                 </p>
               </div>
             </div>
+
+            {roundNeedsRestart && (
+              <div className="rounded-2xl border border-[var(--primary)]/30 bg-[var(--primary)]/5 p-3 space-y-2">
+                <p className="text-sm font-bold">
+                  {selectedTextbook.active_round.round_number}회독을 완료했어요
+                </p>
+                <p className="text-xs text-[var(--muted)]">
+                  다음 회독을 시작하면 진도가 0페이지부터 새로 기록되고 이전 기록은 보존됩니다.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleStartNextRound}
+                  disabled={roundStarting}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
+                >
+                  {roundStarting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RotateCcw className="h-4 w-4" />
+                  )}
+                  {selectedTextbook.active_round.round_number + 1}회독 시작
+                </button>
+              </div>
+            )}
 
             <div className="rounded-2xl border border-dashed border-[var(--border)] p-3">
               <div className="flex items-center justify-between gap-3">
@@ -867,7 +926,9 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
             )}
 
             <div className="flex items-center justify-between text-sm">
-              <span className="text-[var(--muted)]">전체 진도</span>
+              <span className="text-[var(--muted)]">
+                {selectedTextbook.active_round.round_number}회독 진도
+              </span>
               <span className="font-bold">
                 {selectedTextbook.current_page}/{selectedTextbook.total_pages}p · {selectedTextbook.progress_percent}%
               </span>
@@ -942,6 +1003,7 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
               min={0}
               value={startPage}
               onChange={(e) => setStartPage(e.target.value)}
+              disabled={roundNeedsRestart}
               placeholder="예: 1"
               className="w-full"
             />
@@ -953,6 +1015,7 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
               min={1}
               value={endPage}
               onChange={(e) => setEndPage(e.target.value)}
+              disabled={roundNeedsRestart}
               placeholder="예: 18"
               className="w-full"
             />
@@ -1014,7 +1077,7 @@ export default function RecordForm({ editRecord, onSuccess }: RecordFormProps) {
 
       <button
         type="submit"
-        disabled={saving || coverProcessing || !selectedStudent}
+        disabled={saving || coverProcessing || roundStarting || roundNeedsRestart || !selectedStudent}
         className="w-full py-4 rounded-2xl font-bold text-lg text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
         style={{
           background: selectedSubject

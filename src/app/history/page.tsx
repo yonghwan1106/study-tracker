@@ -166,11 +166,12 @@ export default function HistoryPage() {
                           </div>
                           <p className="text-sm text-muted mt-1">
                             {record.textbook?.name}
+                            {record.round_number > 1 && ` · ${record.round_number}회독`}
                             {record.textbook_section && ` · ${record.textbook_section.name}`}
                           </p>
                           <p className="text-sm text-muted">
                             {record.start_page ?? '?'}p → {record.end_page}p
-                            {record.textbook && ` · 전체 ${record.textbook.progress_percent}%`}
+                            {record.round && ` · 회독 진도 ${record.round.progress_percent}%`}
                           </p>
                           {record.duration_minutes && (
                             <p className="text-xs text-muted mt-1">학습 시간 {record.duration_minutes}분</p>

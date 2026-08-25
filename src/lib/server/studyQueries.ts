@@ -7,6 +7,7 @@ import {
   StudyRecord,
   Subject,
   Textbook,
+  TextbookRound,
   TextbookSection,
 } from '@/types/database';
 
@@ -38,6 +39,7 @@ export interface TextbookUpdateInput {
 export interface StudyRecordInput {
   student_id: string;
   textbook_id: string;
+  textbook_round_id?: string;
   textbook_section_id?: string;
   study_date: string;
   start_page?: number | null;
@@ -48,6 +50,7 @@ export interface StudyRecordInput {
 
 export interface StudyRecordUpdateInput {
   textbook_id?: string;
+  textbook_round_id?: string;
   textbook_section_id?: string;
   study_date?: string;
   start_page?: number | null;
@@ -105,6 +108,7 @@ function normalizeTextbook(row: Textbook, currentSemester: 1 | 2 = 1): Textbook 
     progress_percent: progressPercent(row.current_page, row.total_pages),
     is_completed: row.current_page >= row.total_pages,
     sections: row.sections?.map(normalizeSection) ?? [],
+    rounds: row.rounds ?? [],
   };
 
   return {
@@ -223,6 +227,115 @@ function sectionJson() {
   `;
 }
 
+function roundAggregateSql() {
+  return `
+    SELECT
+      tr.id,
+      tr.textbook_id,
+      tr.round_number,
+      tr.status,
+      tr.started_at,
+      tr.completed_at,
+      tr.created_at,
+      COALESCE(SUM(progress.current_page), 0)::int AS current_page,
+      COALESCE(SUM(sec.total_pages), 0)::int AS total_pages
+    FROM st_textbook_rounds tr
+    LEFT JOIN st_textbook_round_section_progress progress
+      ON progress.textbook_round_id = tr.id
+    LEFT JOIN st_textbook_sections sec
+      ON sec.id = progress.textbook_section_id
+    WHERE tr.textbook_id = t.id
+    GROUP BY
+      tr.id,
+      tr.textbook_id,
+      tr.round_number,
+      tr.status,
+      tr.started_at,
+      tr.completed_at,
+      tr.created_at
+  `;
+}
+
+function roundJsonObject(alias: string) {
+  return `
+    json_build_object(
+      'id', ${alias}.id::text,
+      'textbook_id', ${alias}.textbook_id::text,
+      'round_number', ${alias}.round_number,
+      'status', ${alias}.status,
+      'started_at', ${alias}.started_at::text,
+      'completed_at', CASE
+        WHEN ${alias}.completed_at IS NULL THEN NULL
+        ELSE ${alias}.completed_at::text
+      END,
+      'current_page', ${alias}.current_page,
+      'total_pages', ${alias}.total_pages,
+      'progress_percent', ROUND(
+        (${alias}.current_page::numeric / NULLIF(${alias}.total_pages, 0)) * 100,
+        1
+      )::float,
+      'is_completed', (${alias}.status = 'completed')
+    )
+  `;
+}
+
+function roundsJson() {
+  return `
+    COALESCE((
+      SELECT json_agg(${roundJsonObject('round_data')} ORDER BY round_data.round_number)
+      FROM (${roundAggregateSql()}) round_data
+    ), '[]'::json)
+  `;
+}
+
+function activeRoundJson() {
+  return `
+    (
+      SELECT ${roundJsonObject('active_round_data')}
+      FROM (${roundAggregateSql()}) active_round_data
+      ORDER BY active_round_data.round_number DESC
+      LIMIT 1
+    )
+  `;
+}
+
+function studyRecordRoundJson() {
+  return `
+    json_build_object(
+      'id', tr.id::text,
+      'textbook_id', tr.textbook_id::text,
+      'round_number', tr.round_number,
+      'status', tr.status,
+      'started_at', tr.started_at::text,
+      'completed_at', CASE
+        WHEN tr.completed_at IS NULL THEN NULL
+        ELSE tr.completed_at::text
+      END,
+      'current_page', COALESCE((
+        SELECT SUM(progress.current_page)::int
+        FROM st_textbook_round_section_progress progress
+        WHERE progress.textbook_round_id = tr.id
+      ), 0),
+      'total_pages', COALESCE((
+        SELECT SUM(round_sec.total_pages)::int
+        FROM st_textbook_round_section_progress progress
+        JOIN st_textbook_sections round_sec ON round_sec.id = progress.textbook_section_id
+        WHERE progress.textbook_round_id = tr.id
+      ), 0),
+      'progress_percent', COALESCE((
+        SELECT ROUND(
+          (SUM(progress.current_page)::numeric / NULLIF(SUM(round_sec.total_pages), 0)) * 100,
+          1
+        )::float
+        FROM st_textbook_round_section_progress progress
+        JOIN st_textbook_sections round_sec ON round_sec.id = progress.textbook_section_id
+        WHERE progress.textbook_round_id = tr.id
+      ), 0),
+      'is_completed', (tr.status = 'completed')
+    )
+  `;
+}
+
 async function getFirstSection(textbookId: string): Promise<TextbookSection | null> {
   const sql = getSql();
   const rows = await sql`
@@ -294,7 +407,9 @@ export async function getTextbook(id: string): Promise<Textbook | null> {
         'color', s.color,
         'sort_order', s.sort_order
       ) AS subject,
-      ${sectionJson()} AS sections
+      ${sectionJson()} AS sections,
+      ${roundsJson()} AS rounds,
+      ${activeRoundJson()} AS active_round
     FROM st_textbooks t
     JOIN st_subjects s ON s.id = t.subject_id
     WHERE t.id = $1
@@ -336,7 +451,9 @@ export async function getTextbooks(
         'color', s.color,
         'sort_order', s.sort_order
       ) AS subject,
-      ${sectionJson()} AS sections
+      ${sectionJson()} AS sections,
+      ${roundsJson()} AS rounds,
+      ${activeRoundJson()} AS active_round
     FROM st_textbooks t
     JOIN st_subjects s ON s.id = t.subject_id
     WHERE t.student_id = $1
@@ -421,7 +538,38 @@ export async function createTextbook(textbook: TextbookInput): Promise<Textbook>
     `;
   }
 
-  await recalculateTextbookProgress(textbookId);
+  await sql`
+    INSERT INTO st_textbook_rounds (textbook_id, round_number, status)
+    VALUES (${textbookId}, 1, 'in_progress')
+    ON CONFLICT (textbook_id, round_number) DO NOTHING
+  `;
+
+  await sql`
+    INSERT INTO st_textbook_round_section_progress (
+      textbook_round_id,
+      textbook_section_id,
+      current_page
+    )
+    SELECT
+      round.id,
+      sec.id,
+      CASE WHEN round.round_number = 1 THEN sec.current_page ELSE 0 END
+    FROM st_textbook_rounds round
+    JOIN st_textbook_sections sec ON sec.textbook_id = round.textbook_id
+    WHERE round.textbook_id = ${textbookId}
+    ON CONFLICT (textbook_round_id, textbook_section_id)
+    DO UPDATE SET
+      current_page = LEAST(
+        st_textbook_round_section_progress.current_page,
+        (SELECT total_pages FROM st_textbook_sections WHERE id = EXCLUDED.textbook_section_id)
+      ),
+      updated_at = NOW()
+  `;
+
+  const latestRound = await getActiveTextbookRound(textbookId);
+  if (latestRound) {
+    await recalculateTextbookRound(latestRound.id);
+  }
 
   const created = await getTextbook(textbookId);
   if (!created) throw new Error('NOT_FOUND');
@@ -538,45 +686,228 @@ export async function updateTextbook(
   return updated;
 }
 
-async function recalculateSectionProgress(sectionId: string): Promise<string | null> {
-  const sql = getSql();
-  const rows = await sql`
-    UPDATE st_textbook_sections sec
-    SET
-      current_page = LEAST(
-        sec.total_pages,
-        COALESCE((
-          SELECT MAX(r.end_page)
-          FROM st_study_records r
-          WHERE r.textbook_section_id = sec.id
-        ), 0)
-      ),
-      updated_at = NOW()
-    WHERE sec.id = ${sectionId}
-    RETURNING textbook_id::text
-  `;
+export async function startNextTextbookRound(textbookId: string): Promise<Textbook> {
+  const textbook = await getTextbook(textbookId);
+  if (!textbook) {
+    throw new Error('NOT_FOUND');
+  }
 
-  return (rows as unknown as { textbook_id: string }[])[0]?.textbook_id ?? null;
+  if (textbook.active_round.status !== 'completed') {
+    badRequest('현재 회독을 완료한 뒤 다음 회독을 시작할 수 있습니다.');
+  }
+
+  const sql = getSql();
+  let rows;
+
+  try {
+    rows = await sql.query(`
+      WITH latest AS MATERIALIZED (
+        SELECT id, round_number, status
+        FROM st_textbook_rounds
+        WHERE textbook_id = $1
+        ORDER BY round_number DESC
+        LIMIT 1
+      ),
+      inserted_round AS (
+        INSERT INTO st_textbook_rounds (
+          textbook_id,
+          round_number,
+          status,
+          started_at
+        )
+        SELECT $1, latest.round_number + 1, 'in_progress', NOW()
+        FROM latest
+        WHERE latest.status = 'completed'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM st_textbook_rounds running
+            WHERE running.textbook_id = $1
+              AND running.status = 'in_progress'
+          )
+        RETURNING id, textbook_id
+      ),
+      inserted_progress AS (
+        INSERT INTO st_textbook_round_section_progress (
+          textbook_round_id,
+          textbook_section_id,
+          current_page
+        )
+        SELECT inserted_round.id, sec.id, 0
+        FROM inserted_round
+        JOIN st_textbook_sections sec ON sec.textbook_id = inserted_round.textbook_id
+        RETURNING textbook_section_id
+      ),
+      reset_sections AS (
+        UPDATE st_textbook_sections sec
+        SET current_page = 0, updated_at = NOW()
+        WHERE sec.textbook_id = $1
+          AND EXISTS (SELECT 1 FROM inserted_round)
+        RETURNING sec.id
+      ),
+      reset_textbook AS (
+        UPDATE st_textbooks textbook
+        SET current_page = 0, updated_at = NOW()
+        WHERE textbook.id = $1
+          AND EXISTS (SELECT 1 FROM inserted_round)
+        RETURNING textbook.id
+      )
+      SELECT id::text
+      FROM inserted_round
+    `, [textbookId]);
+  } catch (error) {
+    if (
+      typeof error === 'object'
+      && error !== null
+      && 'code' in error
+      && error.code === '23505'
+    ) {
+      badRequest('이미 진행 중인 회독이 있습니다.');
+    }
+    throw error;
+  }
+
+  if ((rows as unknown as { id: string }[]).length === 0) {
+    badRequest('현재 회독을 완료한 뒤 다음 회독을 시작할 수 있습니다.');
+  }
+
+  const updated = await getTextbook(textbookId);
+  if (!updated) throw new Error('NOT_FOUND');
+  return updated;
 }
 
-async function recalculateTextbookProgress(textbookId: string): Promise<void> {
+interface TextbookRoundRow extends TextbookRound {
+  created_at?: string;
+  updated_at?: string;
+}
+
+async function getTextbookRound(roundId: string): Promise<TextbookRoundRow | null> {
+  const sql = getSql();
+  const rows = await sql.query(`
+    SELECT
+      tr.id::text,
+      tr.textbook_id::text,
+      tr.round_number,
+      tr.status,
+      tr.started_at::text,
+      CASE WHEN tr.completed_at IS NULL THEN NULL ELSE tr.completed_at::text END AS completed_at,
+      COALESCE(SUM(progress.current_page), 0)::int AS current_page,
+      COALESCE(SUM(sec.total_pages), 0)::int AS total_pages,
+      ROUND(
+        (COALESCE(SUM(progress.current_page), 0)::numeric
+          / NULLIF(COALESCE(SUM(sec.total_pages), 0), 0)) * 100,
+        1
+      )::float AS progress_percent,
+      (tr.status = 'completed') AS is_completed,
+      tr.created_at::text,
+      tr.updated_at::text
+    FROM st_textbook_rounds tr
+    LEFT JOIN st_textbook_round_section_progress progress
+      ON progress.textbook_round_id = tr.id
+    LEFT JOIN st_textbook_sections sec
+      ON sec.id = progress.textbook_section_id
+    WHERE tr.id = $1
+    GROUP BY tr.id
+    LIMIT 1
+  `, [roundId]);
+
+  return (rows as unknown as TextbookRoundRow[])[0] ?? null;
+}
+
+async function getActiveTextbookRound(textbookId: string): Promise<TextbookRoundRow | null> {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT id::text
+    FROM st_textbook_rounds
+    WHERE textbook_id = ${textbookId}
+    ORDER BY round_number DESC
+    LIMIT 1
+  `;
+
+  const roundId = (rows as unknown as { id: string }[])[0]?.id;
+  return roundId ? getTextbookRound(roundId) : null;
+}
+
+async function recalculateRoundSectionProgress(
+  textbookRoundId: string,
+  textbookSectionId: string
+): Promise<void> {
   const sql = getSql();
   await sql`
-    UPDATE st_textbooks t
+    UPDATE st_textbook_round_section_progress progress
+    SET
+      current_page = COALESCE((
+        SELECT LEAST(sec.total_pages, COALESCE(MAX(record.end_page), 0))
+        FROM st_textbook_sections sec
+        LEFT JOIN st_study_records record
+          ON record.textbook_section_id = sec.id
+          AND record.textbook_round_id = ${textbookRoundId}
+        WHERE sec.id = ${textbookSectionId}
+        GROUP BY sec.total_pages
+      ), 0),
+      updated_at = NOW()
+    WHERE progress.textbook_round_id = ${textbookRoundId}
+      AND progress.textbook_section_id = ${textbookSectionId}
+  `;
+}
+
+async function syncActiveRoundMirrors(textbookId: string, textbookRoundId: string): Promise<void> {
+  const sql = getSql();
+  const active = await getActiveTextbookRound(textbookId);
+  if (!active || active.id !== textbookRoundId) return;
+
+  await sql`
+    UPDATE st_textbook_sections sec
+    SET
+      current_page = LEAST(sec.total_pages, progress.current_page),
+      updated_at = NOW()
+    FROM st_textbook_round_section_progress progress
+    WHERE progress.textbook_round_id = ${textbookRoundId}
+      AND progress.textbook_section_id = sec.id
+      AND sec.textbook_id = ${textbookId}
+  `;
+
+  await sql`
+    UPDATE st_textbooks textbook
     SET
       total_pages = COALESCE((
         SELECT SUM(sec.total_pages)::int
         FROM st_textbook_sections sec
-        WHERE sec.textbook_id = t.id
-      ), t.total_pages),
+        WHERE sec.textbook_id = textbook.id
+      ), textbook.total_pages),
       current_page = COALESCE((
         SELECT SUM(sec.current_page)::int
         FROM st_textbook_sections sec
-        WHERE sec.textbook_id = t.id
+        WHERE sec.textbook_id = textbook.id
       ), 0),
       updated_at = NOW()
-    WHERE t.id = ${textbookId}
+    WHERE textbook.id = ${textbookId}
   `;
+}
+
+async function recalculateTextbookRound(textbookRoundId: string): Promise<void> {
+  const sql = getSql();
+  const round = await getTextbookRound(textbookRoundId);
+  if (!round) return;
+
+  const active = await getActiveTextbookRound(round.textbook_id);
+  const isActive = active?.id === round.id;
+
+  if (isActive) {
+    const completed = round.total_pages > 0 && round.current_page >= round.total_pages;
+    await sql`
+      UPDATE st_textbook_rounds
+      SET
+        status = ${completed ? 'completed' : 'in_progress'},
+        completed_at = CASE
+          WHEN ${completed} THEN COALESCE(completed_at, NOW())
+          ELSE NULL
+        END,
+        updated_at = NOW()
+      WHERE id = ${textbookRoundId}
+    `;
+
+    await syncActiveRoundMirrors(round.textbook_id, textbookRoundId);
+  }
 }
 
 export async function getStudyRecords(
@@ -590,6 +921,8 @@ export async function getStudyRecords(
       r.id::text,
       r.student_id::text,
       r.textbook_id::text,
+      r.textbook_round_id::text,
+      tr.round_number,
       r.textbook_section_id::text,
       r.subject_id::text,
       to_char(r.study_date, 'YYYY-MM-DD') AS study_date,
@@ -623,8 +956,11 @@ export async function getStudyRecords(
         'is_completed', (t.current_page >= t.total_pages),
         'created_at', t.created_at::text,
         'updated_at', t.updated_at::text,
-        'sections', ${sectionJson()}
+        'sections', ${sectionJson()},
+        'rounds', ${roundsJson()},
+        'active_round', ${activeRoundJson()}
       ) AS textbook,
+      ${studyRecordRoundJson()} AS round,
       json_build_object(
         'id', sec.id::text,
         'textbook_id', sec.textbook_id::text,
@@ -640,6 +976,7 @@ export async function getStudyRecords(
       ) AS textbook_section
     FROM st_study_records r
     JOIN st_textbooks t ON t.id = r.textbook_id
+    JOIN st_textbook_rounds tr ON tr.id = r.textbook_round_id
     JOIN st_textbook_sections sec ON sec.id = r.textbook_section_id
     JOIN st_subjects s ON s.id = r.subject_id
     WHERE r.student_id = $1
@@ -665,6 +1002,8 @@ export async function getStudyRecord(id: string): Promise<StudyRecord | null> {
       r.id::text,
       r.student_id::text,
       r.textbook_id::text,
+      r.textbook_round_id::text,
+      tr.round_number,
       r.textbook_section_id::text,
       r.subject_id::text,
       to_char(r.study_date, 'YYYY-MM-DD') AS study_date,
@@ -698,8 +1037,11 @@ export async function getStudyRecord(id: string): Promise<StudyRecord | null> {
         'is_completed', (t.current_page >= t.total_pages),
         'created_at', t.created_at::text,
         'updated_at', t.updated_at::text,
-        'sections', ${sectionJson()}
+        'sections', ${sectionJson()},
+        'rounds', ${roundsJson()},
+        'active_round', ${activeRoundJson()}
       ) AS textbook,
+      ${studyRecordRoundJson()} AS round,
       json_build_object(
         'id', sec.id::text,
         'textbook_id', sec.textbook_id::text,
@@ -715,6 +1057,7 @@ export async function getStudyRecord(id: string): Promise<StudyRecord | null> {
       ) AS textbook_section
     FROM st_study_records r
     JOIN st_textbooks t ON t.id = r.textbook_id
+    JOIN st_textbook_rounds tr ON tr.id = r.textbook_round_id
     JOIN st_textbook_sections sec ON sec.id = r.textbook_section_id
     JOIN st_subjects s ON s.id = r.subject_id
     WHERE r.id = $1
@@ -732,6 +1075,14 @@ export async function createStudyRecord(record: StudyRecordInput): Promise<Study
     throw new Error('NOT_FOUND');
   }
 
+  const round = record.textbook_round_id
+    ? await getTextbookRound(record.textbook_round_id)
+    : textbook.active_round;
+
+  if (!round || round.textbook_id !== textbook.id) {
+    badRequest('선택한 회독이 해당 교재에 속하지 않습니다.');
+  }
+
   const section = record.textbook_section_id
     ? textbook.sections?.find((item) => item.id === record.textbook_section_id)
     : await getFirstSection(record.textbook_id);
@@ -747,6 +1098,7 @@ export async function createStudyRecord(record: StudyRecordInput): Promise<Study
     INSERT INTO st_study_records (
       student_id,
       textbook_id,
+      textbook_round_id,
       textbook_section_id,
       subject_id,
       study_date,
@@ -758,6 +1110,7 @@ export async function createStudyRecord(record: StudyRecordInput): Promise<Study
     VALUES (
       ${record.student_id},
       ${record.textbook_id},
+      ${round.id},
       ${section.id},
       ${textbook.subject_id},
       ${record.study_date}::date,
@@ -769,10 +1122,8 @@ export async function createStudyRecord(record: StudyRecordInput): Promise<Study
     RETURNING id::text
   `;
 
-  const textbookId = await recalculateSectionProgress(section.id);
-  if (textbookId) {
-    await recalculateTextbookProgress(textbookId);
-  }
+  await recalculateRoundSectionProgress(round.id, section.id);
+  await recalculateTextbookRound(round.id);
 
   const created = await getStudyRecord((rows as unknown as { id: string }[])[0].id);
   if (!created) throw new Error('NOT_FOUND');
@@ -797,6 +1148,17 @@ export async function updateStudyRecord(
     throw new Error('NOT_FOUND');
   }
 
+  const nextRoundId = record.textbook_round_id ?? (
+    nextTextbookId === current.textbook_id
+      ? current.textbook_round_id
+      : textbook.active_round.id
+  );
+  const round = await getTextbookRound(nextRoundId);
+
+  if (!round || round.textbook_id !== nextTextbookId) {
+    badRequest('선택한 회독이 해당 교재에 속하지 않습니다.');
+  }
+
   const nextSectionId = record.textbook_section_id ?? (
     nextTextbookId === current.textbook_id ? current.textbook_section_id : textbook.sections?.[0]?.id
   );
@@ -808,6 +1170,7 @@ export async function updateStudyRecord(
 
   const next = {
     textbook_id: nextTextbookId,
+    textbook_round_id: round.id,
     textbook_section_id: section.id,
     subject_id: textbook.subject_id,
     study_date: record.study_date ?? current.study_date,
@@ -826,6 +1189,7 @@ export async function updateStudyRecord(
     UPDATE st_study_records
     SET
       textbook_id = ${next.textbook_id},
+      textbook_round_id = ${next.textbook_round_id},
       textbook_section_id = ${next.textbook_section_id},
       subject_id = ${next.subject_id},
       study_date = ${next.study_date}::date,
@@ -837,16 +1201,21 @@ export async function updateStudyRecord(
     WHERE id = ${id}
   `;
 
-  const currentTextbookId = await recalculateSectionProgress(current.textbook_section_id);
-  if (currentTextbookId) {
-    await recalculateTextbookProgress(currentTextbookId);
-  }
+  await recalculateRoundSectionProgress(
+    current.textbook_round_id,
+    current.textbook_section_id
+  );
+  await recalculateTextbookRound(current.textbook_round_id);
 
-  if (current.textbook_section_id !== next.textbook_section_id) {
-    const nextRecalculatedTextbookId = await recalculateSectionProgress(next.textbook_section_id);
-    if (nextRecalculatedTextbookId) {
-      await recalculateTextbookProgress(nextRecalculatedTextbookId);
-    }
+  if (
+    current.textbook_round_id !== next.textbook_round_id
+    || current.textbook_section_id !== next.textbook_section_id
+  ) {
+    await recalculateRoundSectionProgress(
+      next.textbook_round_id,
+      next.textbook_section_id
+    );
+    await recalculateTextbookRound(next.textbook_round_id);
   }
 
   const updated = await getStudyRecord(id);
@@ -860,16 +1229,20 @@ export async function deleteStudyRecord(id: string): Promise<void> {
   const rows = await sql`
     DELETE FROM st_study_records
     WHERE id = ${id}
-    RETURNING textbook_section_id::text
+    RETURNING textbook_round_id::text, textbook_section_id::text
   `;
 
-  const deleted = (rows as unknown as { textbook_section_id: string }[])[0];
+  const deleted = (rows as unknown as {
+    textbook_round_id: string;
+    textbook_section_id: string;
+  }[])[0];
   if (!deleted) {
     throw new Error('NOT_FOUND');
   }
 
-  const textbookId = await recalculateSectionProgress(deleted.textbook_section_id);
-  if (textbookId) {
-    await recalculateTextbookProgress(textbookId);
-  }
+  await recalculateRoundSectionProgress(
+    deleted.textbook_round_id,
+    deleted.textbook_section_id
+  );
+  await recalculateTextbookRound(deleted.textbook_round_id);
 }

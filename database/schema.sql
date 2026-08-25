@@ -221,11 +221,104 @@ END $$;
 ALTER TABLE st_study_records
 ALTER COLUMN textbook_section_id SET NOT NULL;
 
+-- Textbook rounds preserve each full pass through a book independently.
+CREATE TABLE IF NOT EXISTS st_textbook_rounds (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  textbook_id UUID NOT NULL REFERENCES st_textbooks(id) ON DELETE CASCADE,
+  round_number INT NOT NULL CHECK (round_number > 0),
+  status TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress', 'completed')),
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(textbook_id, round_number)
+);
+
+-- Each round has an independent current page for every main/workbook section.
+CREATE TABLE IF NOT EXISTS st_textbook_round_section_progress (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  textbook_round_id UUID NOT NULL REFERENCES st_textbook_rounds(id) ON DELETE CASCADE,
+  textbook_section_id UUID NOT NULL REFERENCES st_textbook_sections(id) ON DELETE CASCADE,
+  current_page INT NOT NULL DEFAULT 0 CHECK (current_page >= 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(textbook_round_id, textbook_section_id)
+);
+
+ALTER TABLE st_study_records
+ADD COLUMN IF NOT EXISTS textbook_round_id UUID;
+
+-- Existing textbook progress becomes round 1 without changing any page values.
+INSERT INTO st_textbook_rounds (
+  textbook_id,
+  round_number,
+  status,
+  started_at,
+  completed_at
+)
+SELECT
+  t.id,
+  1,
+  CASE WHEN t.current_page >= t.total_pages THEN 'completed' ELSE 'in_progress' END,
+  COALESCE(
+    (SELECT MIN(r.study_date)::timestamptz FROM st_study_records r WHERE r.textbook_id = t.id),
+    t.created_at,
+    NOW()
+  ),
+  CASE WHEN t.current_page >= t.total_pages THEN COALESCE(t.updated_at, NOW()) ELSE NULL END
+FROM st_textbooks t
+ON CONFLICT (textbook_id, round_number) DO NOTHING;
+
+INSERT INTO st_textbook_round_section_progress (
+  textbook_round_id,
+  textbook_section_id,
+  current_page
+)
+SELECT
+  tr.id,
+  sec.id,
+  sec.current_page
+FROM st_textbook_rounds tr
+JOIN st_textbook_sections sec ON sec.textbook_id = tr.textbook_id
+WHERE tr.round_number = 1
+ON CONFLICT (textbook_round_id, textbook_section_id) DO NOTHING;
+
+UPDATE st_study_records record
+SET textbook_round_id = round.id
+FROM st_textbook_rounds round
+WHERE round.textbook_id = record.textbook_id
+  AND round.round_number = 1
+  AND record.textbook_round_id IS NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'st_study_records_textbook_round_id_fkey'
+  ) THEN
+    ALTER TABLE st_study_records
+    ADD CONSTRAINT st_study_records_textbook_round_id_fkey
+    FOREIGN KEY (textbook_round_id)
+    REFERENCES st_textbook_rounds(id)
+    ON DELETE CASCADE;
+  END IF;
+END $$;
+
+ALTER TABLE st_study_records
+ALTER COLUMN textbook_round_id SET NOT NULL;
+
 CREATE INDEX IF NOT EXISTS idx_st_textbooks_student_subject ON st_textbooks(student_id, subject_id);
 CREATE INDEX IF NOT EXISTS idx_st_textbooks_student_progress ON st_textbooks(student_id, current_page, total_pages);
 CREATE INDEX IF NOT EXISTS idx_st_textbook_sections_textbook ON st_textbook_sections(textbook_id, sort_order);
 CREATE INDEX IF NOT EXISTS idx_st_study_records_student_date ON st_study_records(student_id, study_date);
 CREATE INDEX IF NOT EXISTS idx_st_study_records_textbook_date ON st_study_records(textbook_id, study_date);
 CREATE INDEX IF NOT EXISTS idx_st_study_records_section_date ON st_study_records(textbook_section_id, study_date);
+CREATE INDEX IF NOT EXISTS idx_st_textbook_rounds_textbook_number ON st_textbook_rounds(textbook_id, round_number DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_st_textbook_rounds_one_in_progress
+  ON st_textbook_rounds(textbook_id)
+  WHERE status = 'in_progress';
+CREATE INDEX IF NOT EXISTS idx_st_round_section_progress_round ON st_textbook_round_section_progress(textbook_round_id);
+CREATE INDEX IF NOT EXISTS idx_st_study_records_round_date ON st_study_records(textbook_round_id, study_date);
 CREATE INDEX IF NOT EXISTS idx_st_school_events_student_dates ON st_school_events(student_id, start_date, end_date);
 CREATE INDEX IF NOT EXISTS idx_st_school_events_subject_date ON st_school_events(subject_id, start_date);
