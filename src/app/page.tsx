@@ -5,14 +5,12 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useStudent } from '@/components/layout/StudentContext';
 import TextbookCover from '@/components/textbooks/TextbookCover';
-import TextbookRoundStatus from '@/components/textbooks/TextbookRoundStatus';
 import {
+  getCachedHomeData,
+  getHomeData,
   getPagesDone,
-  getStudyRecordsByDate,
-  getTextbooks,
-  getWeeklyStats,
 } from '@/lib/api';
-import { StudyRecord, Subject, Textbook } from '@/types/database';
+import type { HomeData, HomeTextbook } from '@/types/home';
 import { partitionTextbooksForCurrentSemester } from '@/lib/textbookVisibility';
 import { formatDate, getToday } from '@/lib/utils';
 import { ChevronDown, ChevronUp } from 'lucide-react';
@@ -54,9 +52,7 @@ const homeSubjectOrder: Record<string, number> = {
   국어: 3,
 };
 
-const homeSubjectCategories: Subject['category'][] = ['math', 'english', 'korean'];
-
-function HomeTextbookLink({ textbook }: { textbook: Textbook }) {
+function HomeTextbookLink({ textbook }: { textbook: HomeTextbook }) {
   return (
     <Link
       href={`/record?textbookId=${encodeURIComponent(textbook.id)}`}
@@ -73,18 +69,14 @@ function HomeTextbookLink({ textbook }: { textbook: Textbook }) {
           />
           <div className="min-w-0">
             <p className="font-bold truncate">{textbook.name}</p>
-            <TextbookRoundStatus textbook={textbook} />
+            <p className="text-xs font-bold text-[var(--primary)]">
+              {textbook.is_completed
+                ? `${textbook.round_number}회독 완료`
+                : `${textbook.completed_round_count > 0 ? `${textbook.completed_round_count}회독 완료 · ` : ''}${textbook.round_number}회독 진행 중`}
+            </p>
             <p className="text-xs text-[var(--muted)]">
               {textbook.subject?.name} · {textbook.current_page}/{textbook.total_pages}p
             </p>
-            {textbook.curriculum_type === 'year' && textbook.school_progress && (
-              <p className="text-xs font-medium" style={{ color: textbook.subject?.color }}>
-                {textbook.school_progress.current_semester}학기 수업 ·
-                {textbook.school_progress.current_pages}/
-                {textbook.school_progress.target_pages}p ·
-                {textbook.school_progress.progress_percent}%
-              </p>
-            )}
           </div>
         </div>
         <span
@@ -106,77 +98,57 @@ function HomeTextbookLink({ textbook }: { textbook: Textbook }) {
           }}
         />
       </div>
-      {textbook.sections && textbook.sections.length > 1 && (
-        <div className="grid gap-1.5 pt-1">
-          {textbook.sections.map((section) => (
-            <div key={section.id} className="flex items-center justify-between text-xs text-[var(--muted)]">
-              <span>{section.name}</span>
-              <span>{section.current_page}/{section.total_pages}p · {section.progress_percent}%</span>
-            </div>
-          ))}
-        </div>
-      )}
     </Link>
   );
 }
 
 export default function Home() {
   const { selectedStudent, loading: studentLoading } = useStudent();
-  const [todayRecords, setTodayRecords] = useState<StudyRecord[]>([]);
-  const [textbooks, setTextbooks] = useState<Textbook[]>([]);
-  const [weeklyStats, setWeeklyStats] = useState<{
-    totalPages: number;
-    recordCount: number;
-    subjectBreakdown: { subject: Subject; pages: number }[];
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [home, setHome] = useState<{
+    key: string;
+    data?: HomeData;
+    error?: string;
+  }>({ key: '' });
+  const [reload, setReload] = useState(0);
+  const today = getToday();
+  const studentId = selectedStudent?.id;
+  const homeKey = `${studentId}:${today}`;
+  const data = home.key === homeKey ? home.data : undefined;
+  const error = home.key === homeKey ? home.error : undefined;
+  const loading = !data && !error;
+  const todayRecords = data?.todayRecords ?? [];
+  const textbooks = data?.textbooks ?? [];
+  const weeklyStats = data?.weeklyStats;
   const [showPreviousTextbooks, setShowPreviousTextbooks] = useState(false);
   const [motivation] = useState(() =>
     motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)]
   );
 
   useEffect(() => {
+    if (!studentId) return;
+    const controller = new AbortController();
+    const key = `${studentId}:${today}`;
     async function loadData() {
-      if (!selectedStudent) return;
-
-      setLoading(true);
+      setHome({ key, data: getCachedHomeData(studentId!, today) });
       setShowPreviousTextbooks(false);
       try {
-        const today = getToday();
-        const [records, textbookData, weekly] = await Promise.all([
-          getStudyRecordsByDate(selectedStudent.id, today),
-          getTextbooks(selectedStudent.id, undefined, homeSubjectCategories),
-          getWeeklyStats(selectedStudent.id, new Date(), { includeTextbooks: false }),
-        ]);
-        setTodayRecords(records);
-        setTextbooks(textbookData);
-
-        const subjectBreakdown: { subject: Subject; pages: number }[] = [];
-        Object.entries(weekly.subjectStats).forEach(([, stats]) => {
-          const record = stats.records[0];
-          if (record?.subject) {
-            subjectBreakdown.push({
-              subject: record.subject,
-              pages: stats.total_pages,
-            });
-          }
-        });
-        subjectBreakdown.sort((a, b) => b.pages - a.pages);
-
-        setWeeklyStats({
-          totalPages: weekly.records.reduce((sum, record) => sum + getPagesDone(record), 0),
-          recordCount: weekly.records.length,
-          subjectBreakdown,
-        });
+        const fresh = await getHomeData(studentId!, today, controller.signal);
+        if (!controller.signal.aborted) setHome({ key, data: fresh });
       } catch (error) {
-        console.error('Error loading data:', error);
-      } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          console.error('Error loading data:', error);
+          setHome((previous) => ({
+            ...previous,
+            key,
+            error: '최신 진도를 불러오지 못했어요.',
+          }));
+        }
       }
     }
 
     loadData();
-  }, [selectedStudent]);
+    return () => controller.abort();
+  }, [studentId, today, reload]);
 
   if (studentLoading) {
     return (
@@ -223,6 +195,14 @@ export default function Home() {
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div role="alert" className="flex items-center justify-between gap-3 text-sm text-[var(--muted)]">
+          <span>{error}</span>
+          <button type="button" onClick={() => setReload((value) => value + 1)} className="font-bold text-[var(--primary)]">
+            다시 시도
+          </button>
+        </div>
+      )}
       <section
         className="glass-card p-6 text-center animate-fade-in-up"
         style={{

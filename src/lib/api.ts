@@ -8,6 +8,22 @@ import {
   Textbook,
 } from '@/types/database';
 import { startOfWeek, endOfWeek, format } from 'date-fns';
+import type { HomeData } from '@/types/home';
+
+const homeCache = new Map<string, HomeData>();
+
+export function getCachedHomeData(studentId: string, date: string) {
+  return homeCache.get(`${studentId}:${date}`);
+}
+
+export async function getHomeData(studentId: string, date: string, signal?: AbortSignal) {
+  const data = await request<HomeData>(buildUrl('/api/home', { studentId, date }), { signal });
+  if (!signal?.aborted) {
+    if (homeCache.size >= 4) homeCache.delete(homeCache.keys().next().value!);
+    homeCache.set(`${studentId}:${date}`, data);
+  }
+  return data;
+}
 
 type SubjectCategory = Subject['category'];
 
@@ -122,6 +138,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
     throw new Error(message);
   }
+
+  if (options.method && options.method !== 'GET') homeCache.clear();
 
   if (response.status === 204) {
     return undefined as T;
@@ -275,7 +293,7 @@ export async function deleteSchoolEvent(id: string): Promise<void> {
   });
 }
 
-export function getPagesDone(record: StudyRecord): number {
+export function getPagesDone(record: Pick<StudyRecord, 'pages_done' | 'start_page' | 'end_page'>): number {
   if (record.pages_done !== null && record.pages_done !== undefined) {
     return record.pages_done;
   }

@@ -72,8 +72,8 @@ function isCurrentGradeFirstSemesterTextbook(textbook: TextbookIdentity) {
   );
 }
 
-export function partitionTextbooksForCurrentSemester(
-  textbooks: Textbook[],
+export function partitionTextbooksForCurrentSemester<T extends TextbookIdentity>(
+  textbooks: T[],
   date: Date = new Date()
 ) {
   const seoulDateKey = getSeoulDateKey(date);
@@ -83,7 +83,7 @@ export function partitionTextbooksForCurrentSemester(
       isArchiveActive: false,
       isSecondSemester: false,
       currentTextbooks: textbooks,
-      previousTextbooks: [] as Textbook[],
+      previousTextbooks: [] as T[],
     };
   }
 
@@ -100,8 +100,8 @@ export function partitionTextbooksForCurrentSemester(
       {
         isArchiveActive: true,
         isSecondSemester: false,
-        currentTextbooks: [] as Textbook[],
-        previousTextbooks: [] as Textbook[],
+        currentTextbooks: [] as T[],
+        previousTextbooks: [] as T[],
       }
     );
   }
@@ -122,8 +122,8 @@ export function partitionTextbooksForCurrentSemester(
     {
       isArchiveActive: true,
       isSecondSemester: true,
-      currentTextbooks: [] as Textbook[],
-      previousTextbooks: [] as Textbook[],
+      currentTextbooks: [] as T[],
+      previousTextbooks: [] as T[],
     }
   );
 }
